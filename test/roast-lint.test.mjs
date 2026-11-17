@@ -1,14 +1,17 @@
-/* Fixture tests for the No-Invention Lint port embedded in roast.html.
+/* Fixture tests for the No-Invention Lint engine.
    Run: node test/roast-lint.test.mjs   (no dependencies)
-   The engine is extracted from the page itself, so what is tested here is
-   exactly what ships. */
+   The engine lives in ONE shared file, assets/roast-lint.js, loaded by both
+   roast.html and the homepage (index.html). The engine is extracted from
+   that shared file, so what is tested here is exactly what ships — and the
+   sharing checks at the end fail if either page grows its own inline copy. */
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
-const html = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'roast.html'), 'utf8');
-const m = html.match(/\/\* ROAST-ENGINE-START \*\/([\s\S]*?)\/\* ROAST-ENGINE-END \*\//);
-if (!m) { console.error('FAIL engine block not found in roast.html'); process.exit(1); }
+const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+const engineSrc = readFileSync(join(root, 'assets', 'roast-lint.js'), 'utf8');
+const m = engineSrc.match(/\/\* ROAST-ENGINE-START \*\/([\s\S]*?)\/\* ROAST-ENGINE-END \*\//);
+if (!m) { console.error('FAIL engine block not found in assets/roast-lint.js'); process.exit(1); }
 const win = {};
 new Function('window', m[1])(win);
 const L = win.RoastLint;
@@ -88,6 +91,17 @@ const eq = (name, got, want) => ok(name, JSON.stringify(got) === JSON.stringify(
 {
   eq('(f) heading skipped, bullets read', L.splitClaims('Action items:\n- Priya will send the report.\n- The review took 3.5 hours.'),
     ['Priya will send the report.', 'The review took 3.5 hours.']);
+}
+
+/* (g) one shared engine: both pages load assets/roast-lint.js, and neither
+   page carries an inline copy that could drift from it. */
+{
+  const roast = readFileSync(join(root, 'roast.html'), 'utf8');
+  const home = readFileSync(join(root, 'index.html'), 'utf8');
+  ok('(g) roast.html loads the shared engine', roast.includes('<script src="assets/roast-lint.js"></script>'));
+  ok('(g) index.html loads the shared engine', home.includes('<script src="assets/roast-lint.js"></script>'));
+  ok('(g) no inline engine in roast.html', !roast.includes('ROAST-ENGINE-START'));
+  ok('(g) no inline engine in index.html', !home.includes('ROAST-ENGINE-START'));
 }
 
 console.log(fails ? `\n${fails} fixture(s) FAILED` : '\nAll fixtures passed');
