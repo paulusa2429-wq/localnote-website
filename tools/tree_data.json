@@ -1,0 +1,798 @@
+{
+ "days": [
+  {
+   "id": "day-sunday",
+   "scenes": [
+    {
+     "id": "s1",
+     "ssub": "SUNDAY, 21:40",
+     "title": "He says the week out loud, and it stays said.",
+     "sline": "He speaks the week he wants to have; the note is kept, and Monday opens on it.",
+     "inbound": null,
+     "leaves": [
+      {
+       "color": "#2563eb",
+       "name": "Voice inbox",
+       "family": "capture",
+       "label": "Voice inbox",
+       "gloss": "Quick spoken notes, captured and kept"
+      },
+      {
+       "color": "#2563eb",
+       "name": "Dictation (⌘⇧D)",
+       "family": "capture",
+       "label": "Dictation (⌘⇧D)",
+       "gloss": "Speak into any app, anywhere"
+      }
+     ]
+    }
+   ],
+   "name": "Sunday night",
+   "sub": "21:40 · THE WEEK, SPOKEN"
+  },
+  {
+   "id": "day-monday",
+   "scenes": [
+    {
+     "id": "s2",
+     "ssub": "MONDAY MORNING · MY DAY",
+     "title": "My Day. His job is a short queue of approvals.",
+     "sline": "The overnight work waits as a short queue. Nothing has been sent; everything is his to approve.",
+     "inbound": null,
+     "leaves": [
+      {
+       "color": "#a855f7",
+       "name": "My Day",
+       "family": "memory",
+       "label": "My Day",
+       "gloss": "Today, what needs you, what changed"
+      },
+      {
+       "color": "#ea580c",
+       "name": "DayDigest (\"Prep my day\")",
+       "family": "autonomous",
+       "label": "DayDigest — “Prep my day”",
+       "gloss": "Today's events, each with its brief"
+      },
+      {
+       "color": "#ea580c",
+       "name": "Persistent jobs engine",
+       "family": "autonomous",
+       "label": "Persistent jobs engine",
+       "gloss": "Work survives restarts, runs once"
+      },
+      {
+       "color": "#ea580c",
+       "name": "Auto-Backup",
+       "family": "autonomous",
+       "label": "Auto-Backup",
+       "gloss": "Backups happen; restore when needed"
+      },
+      {
+       "color": "#ea580c",
+       "name": "Weekly Recap",
+       "family": "autonomous",
+       "label": "Weekly Recap",
+       "gloss": "Last week's meetings, recapped and waiting"
+      },
+      {
+       "color": "#ea580c",
+       "name": "The morning digest",
+       "family": "autonomous",
+       "label": "The morning digest",
+       "gloss": "One notification; details on My Day"
+      }
+     ]
+    },
+    {
+     "id": "s3",
+     "ssub": "MONDAY · PLAN + BRIEF",
+     "title": "The week is planned around the promises — then the record is opened.",
+     "sline": "The plan is approved and read back into his calendar; then the brief is built from the record itself.",
+     "inbound": null,
+     "leaves": [
+      {
+       "color": "#0d9488",
+       "name": "Day Planner",
+       "family": "workday",
+       "label": "Day Planner",
+       "gloss": "Focus blocks proposed, approved, read back"
+      },
+      {
+       "color": "#854d0e",
+       "name": "Verified Execution kernel",
+       "family": "execution",
+       "label": "Verified Execution kernel",
+       "gloss": "Approved work read back: Verified"
+      },
+      {
+       "color": "#5c42e8",
+       "name": "Before-you-meet brief (Spear)",
+       "family": "flagships",
+       "label": "Before-you-meet brief (Spear)",
+       "gloss": "Where you left off, what's open"
+      },
+      {
+       "color": "#ea580c",
+       "name": "Auto-Brief",
+       "family": "autonomous",
+       "label": "Auto-Brief",
+       "gloss": "Brief ready before the meeting starts"
+      },
+      {
+       "color": "#a855f7",
+       "name": "Work Memory",
+       "family": "memory",
+       "label": "Work Memory",
+       "gloss": "The accumulated memory of the work"
+      },
+      {
+       "color": "#a855f7",
+       "name": "People View + person briefs",
+       "family": "memory",
+       "label": "People View + person briefs",
+       "gloss": "One page per person, what's open"
+      },
+      {
+       "color": "#a855f7",
+       "name": "⌘K offline search",
+       "family": "memory",
+       "label": "⌘K offline search",
+       "gloss": "Every meeting searchable, fully offline"
+      },
+      {
+       "color": "#0d9488",
+       "name": "Email archive",
+       "family": "workday",
+       "label": "Email archive",
+       "gloss": "Threads rebuilt and searchable, offline"
+      }
+     ]
+    },
+    {
+     "id": "s4",
+     "ssub": "MONDAY · PRACTISE, WRITE, SWITCH ON",
+     "title": "He practises the hard conversation before he has it.",
+     "sline": "The brief's questions become a rehearsal; the prep email is rewritten where it was written; what is off is switched on.",
+     "inbound": null,
+     "leaves": [
+      {
+       "color": "#0891b2",
+       "name": "Rehearsal mode",
+       "family": "documents",
+       "label": "Rehearsal mode",
+       "gloss": "Practise the hard talk, off-record"
+      },
+      {
+       "color": "#a855f7",
+       "name": "Ask across meetings + Verified Answers",
+       "family": "memory",
+       "label": "Ask across meetings + Verified Answers",
+       "gloss": "Answers claim-checked, citations attached"
+      },
+      {
+       "color": "#0891b2",
+       "name": "Universal Writing Assistant (⌘⇧E)",
+       "family": "documents",
+       "label": "Universal Writing Assistant (⌘⇧E)",
+       "gloss": "Rewrites text inside other apps"
+      },
+      {
+       "color": "#ea580c",
+       "name": "Setup notifications",
+       "family": "autonomous",
+       "label": "Setup notifications",
+       "gloss": "Off features announce themselves once"
+      }
+     ]
+    }
+   ],
+   "name": "Monday",
+   "sub": "THE PLAN AND THE BRIEF"
+  },
+  {
+   "id": "day-tuesday",
+   "scenes": [
+    {
+     "id": "s5",
+     "ssub": "TUESDAY, 10:00 · AT ACME'S OFFICE",
+     "title": "Recorded on this computer. No bot in the room.",
+     "sline": "Sixty minutes in Acme's office. The record is made on his own laptop, in the room.",
+     "inbound": null,
+     "leaves": [
+      {
+       "color": "#2563eb",
+       "name": "Meeting detection — \"Take notes?\" prompts",
+       "family": "capture",
+       "label": "Meeting detection",
+       "gloss": "Notices the call; offers “Take notes?”"
+      },
+      {
+       "color": "#2563eb",
+       "name": "Bot-free recording",
+       "family": "capture",
+       "label": "Bot-free recording",
+       "gloss": "Records the room, no bot joins"
+      },
+      {
+       "color": "#2563eb",
+       "name": "Offline transcription, language locked per meeting",
+       "family": "capture",
+       "label": "Offline transcription",
+       "gloss": "Words on-device; language held throughout"
+      },
+      {
+       "color": "#2563eb",
+       "name": "In-person mode",
+       "family": "capture",
+       "label": "In-person mode",
+       "gloss": "Same pipeline, people in a room"
+      },
+      {
+       "color": "#2563eb",
+       "name": "Speaker diarization",
+       "family": "capture",
+       "label": "Speaker diarization",
+       "gloss": "Every line labelled with its speaker"
+      },
+      {
+       "color": "#2563eb",
+       "name": "Live Assist",
+       "family": "capture",
+       "label": "Live Assist",
+       "gloss": "Private hints during the meeting"
+      },
+      {
+       "color": "#5c42e8",
+       "name": "Teach-Once Glossary + vocabulary",
+       "family": "flagships",
+       "label": "Teach-Once Glossary",
+       "gloss": "Teach a spelling once, fixed everywhere"
+      },
+      {
+       "color": "#2563eb",
+       "name": "Transcript confidence + per-line edit",
+       "family": "capture",
+       "label": "Transcript confidence + per-line edit",
+       "gloss": "Unsure words flagged; lines editable"
+      },
+      {
+       "color": "#2563eb",
+       "name": "Zero-loss recording recovery",
+       "family": "capture",
+       "label": "Zero-loss recording recovery",
+       "gloss": "Crash or dead battery loses nothing"
+      },
+      {
+       "color": "#2563eb",
+       "name": "Audio import",
+       "family": "capture",
+       "label": "Audio import",
+       "gloss": "Existing recordings transcribed like new ones"
+      },
+      {
+       "color": "#15803d",
+       "name": "Privacy Vault & controls",
+       "family": "privacy",
+       "label": "Privacy Vault & controls",
+       "gloss": "Consent log encrypted; redaction on export"
+      }
+     ]
+    },
+    {
+     "id": "s6",
+     "ssub": "TUESDAY · BACK AT HIS DESK",
+     "title": "The summary is checked against what was actually said.",
+     "sline": "The summary is matched line by line against the transcript and the written record — before anything is built on it.",
+     "inbound": null,
+     "leaves": [
+      {
+       "color": "#0891b2",
+       "name": "Meeting-type note templates",
+       "family": "documents",
+       "label": "Meeting-type note templates",
+       "gloss": "Summary shaped by meeting kind"
+      },
+      {
+       "color": "#5c42e8",
+       "name": "No-Invention Lint",
+       "family": "flagships",
+       "label": "No-Invention Lint",
+       "gloss": "Unbacked lines stamped UNCONFIRMED, visibly"
+      },
+      {
+       "color": "#5c42e8",
+       "name": "Original-Quote Guard",
+       "family": "flagships",
+       "label": "Original-Quote Guard",
+       "gloss": "Translation rides under the original words"
+      },
+      {
+       "color": "#5c42e8",
+       "name": "Said vs Written",
+       "family": "flagships",
+       "label": "Said vs Written",
+       "gloss": "Said against written: agreed, contradicted, unmentioned"
+      },
+      {
+       "color": "#a855f7",
+       "name": "Contradiction Detector",
+       "family": "memory",
+       "label": "Contradiction Detector",
+       "gloss": "Says so when meetings contradict record"
+      },
+      {
+       "color": "#a855f7",
+       "name": "Contradiction Receipt",
+       "family": "memory",
+       "label": "Contradiction Receipt",
+       "gloss": "Both sides saved, quotable later"
+      }
+     ]
+    },
+    {
+     "id": "s7",
+     "ssub": "TUESDAY · THE LEDGER",
+     "title": "Every promise lands in one ledger.",
+     "sline": "The meeting made four promises. Each becomes a ledger row — its exact words, its owner, its due date.",
+     "inbound": null,
+     "leaves": [
+      {
+       "color": "#a855f7",
+       "name": "Commitments Ledger",
+       "family": "memory",
+       "label": "Commitments Ledger",
+       "gloss": "Every promise a row, exact words"
+      },
+      {
+       "color": "#a855f7",
+       "name": "Evidence Timeline",
+       "family": "memory",
+       "label": "Evidence Timeline",
+       "gloss": "Moments bearing on a promise, ordered"
+      },
+      {
+       "color": "#a855f7",
+       "name": "Slip Detector",
+       "family": "memory",
+       "label": "Slip Detector",
+       "gloss": "Passed promises closed as slipped, evidenced"
+      },
+      {
+       "color": "#a855f7",
+       "name": "Commitment Quiz",
+       "family": "memory",
+       "label": "Commitment Quiz",
+       "gloss": "Quizzed on your own promises"
+      },
+      {
+       "color": "#a855f7",
+       "name": "One-click resolution",
+       "family": "memory",
+       "label": "One-click resolution",
+       "gloss": "Promise closed, its proof attached"
+      },
+      {
+       "color": "#a855f7",
+       "name": "Intelligent Reminders",
+       "family": "memory",
+       "label": "Intelligent Reminders",
+       "gloss": "Reminders from the ledger's due dates"
+      }
+     ]
+    },
+    {
+     "id": "s8",
+     "ssub": "TUESDAY EVENING · AT HOME",
+     "title": "The follow-up is written. It is not sent.",
+     "sline": "The follow-up is prepared from the meeting itself — checked before it is allowed to wait for his tap.",
+     "inbound": null,
+     "leaves": [
+      {
+       "color": "#a855f7",
+       "name": "Follow-up drafts",
+       "family": "memory",
+       "label": "Follow-up drafts",
+       "gloss": "Draft ready; sends only on tap"
+      },
+      {
+       "color": "#ea580c",
+       "name": "Auto-Followup",
+       "family": "autonomous",
+       "label": "Auto-Followup",
+       "gloss": "Follow-up drafts prepared for the digest"
+      },
+      {
+       "color": "#db2777",
+       "name": "Border Guard",
+       "family": "agents",
+       "label": "Border Guard",
+       "gloss": "Outgoing drafts checked before waiting"
+      },
+      {
+       "color": "#0891b2",
+       "name": "Recipes",
+       "family": "documents",
+       "label": "Recipes",
+       "gloss": "Saved prompts over chosen meetings"
+      },
+      {
+       "color": "#0891b2",
+       "name": "Polish",
+       "family": "documents",
+       "label": "Polish",
+       "gloss": "Rewrite in place; candidate until accepted"
+      },
+      {
+       "color": "#0891b2",
+       "name": "Work Mode",
+       "family": "documents",
+       "label": "Work Mode",
+       "gloss": "Documents made from the meetings"
+      },
+      {
+       "color": "#0891b2",
+       "name": "PDF export",
+       "family": "documents",
+       "label": "PDF export",
+       "gloss": "A document out as PDF"
+      },
+      {
+       "color": "#0891b2",
+       "name": "Copy / Markdown export",
+       "family": "documents",
+       "label": "Copy / Markdown export",
+       "gloss": "Notes copied or out as Markdown"
+      },
+      {
+       "color": "#0891b2",
+       "name": "Highlight clips",
+       "family": "documents",
+       "label": "Highlight clips",
+       "gloss": "Short audio cut at a highlight"
+      }
+     ]
+    }
+   ],
+   "name": "Tuesday",
+   "sub": "THE MEETING AND ITS WAKE"
+  },
+  {
+   "id": "day-wednesday",
+   "scenes": [
+    {
+     "id": "s9",
+     "ssub": "WEDNESDAY, 9:30 · THE MORNING QUEUE",
+     "title": "The Closer has done the only thing it ever does: prepared, and waited.",
+     "sline": "The queue is built entirely from Tuesday's ledger. A goal is set — and one pinned assumption does not survive the record.",
+     "inbound": "⟵ from Tuesday: the corridor recording, transcribed overnight",
+     "leaves": [
+      {
+       "color": "#5c42e8",
+       "name": "The Closer",
+       "family": "flagships",
+       "label": "The Closer",
+       "gloss": "Chase drafts in one morning queue"
+      },
+      {
+       "color": "#ea580c",
+       "name": "Auto-Diarization",
+       "family": "autonomous",
+       "label": "Auto-Diarization",
+       "gloss": "Speakers identified once notes are ready"
+      },
+      {
+       "color": "#ea580c",
+       "name": "Overdue Nudge",
+       "family": "autonomous",
+       "label": "Overdue Nudge",
+       "gloss": "One digest line, three days overdue"
+      },
+      {
+       "color": "#a855f7",
+       "name": "Meeting folders + smart folder suggestions",
+       "family": "memory",
+       "label": "Meeting folders + suggestions",
+       "gloss": "Folders proposed; you confirm the filing"
+      },
+      {
+       "color": "#db2777",
+       "name": "Goal Agent + deliverables",
+       "family": "agents",
+       "label": "Goal Agent + deliverables",
+       "gloss": "Plans prepared; approval is the work"
+      },
+      {
+       "color": "#db2777",
+       "name": "Assumption Sentinel",
+       "family": "agents",
+       "label": "Assumption Sentinel",
+       "gloss": "Pinned assumptions checked against record"
+      },
+      {
+       "color": "#c026d3",
+       "name": "Agreement packets",
+       "family": "agreements",
+       "label": "Agreement packets",
+       "gloss": "Exact words confirmed by other side"
+      }
+     ]
+    }
+   ],
+   "name": "Wednesday",
+   "sub": "THE CHASE, THE GOAL, THE CRACK"
+  },
+  {
+   "id": "day-thursday",
+   "scenes": [
+    {
+     "id": "s10",
+     "ssub": "THURSDAY MORNING · A QUESTION BECOMES A CASE",
+     "title": "First, his own Thursday promise. Then, the case.",
+     "sline": "A finance claim becomes a case: the week's own records as exhibits, findings with both readings, a packet out.",
+     "inbound": "⟵ from Monday: the June thread, found by search — now an exhibit",
+     "leaves": [
+      {
+       "color": "#475569",
+       "name": "Cases & exhibits",
+       "family": "proofdesk",
+       "label": "Cases & exhibits",
+       "gloss": "A question becomes a case"
+      },
+      {
+       "color": "#475569",
+       "name": "Chronology, findings & reconciliation",
+       "family": "proofdesk",
+       "label": "Chronology, findings & reconciliation",
+       "gloss": "Claims cited; disagreements shown both ways"
+      },
+      {
+       "color": "#475569",
+       "name": "Case export + MCP case tools",
+       "family": "proofdesk",
+       "label": "Case export + MCP case tools",
+       "gloss": "Packet out; standings readable, never bytes"
+      },
+      {
+       "color": "#db2777",
+       "name": "Local MCP Server",
+       "family": "agents",
+       "label": "Local MCP Server",
+       "gloss": "Your AI apps read, scoped, audited"
+      }
+     ]
+    },
+    {
+     "id": "s11",
+     "ssub": "THURSDAY, 14:00 · HIS DAUGHTER'S SCHOOL",
+     "title": "What the school promised, in minutes — against what the weeks delivered.",
+     "sline": "The block Monday's plan set — the one Sunday's note marked immovable — takes him across town to his daughter's school review.",
+     "inbound": null,
+     "leaves": [
+      {
+       "color": "#a855f7",
+       "name": "IEP Ledger",
+       "family": "memory",
+       "label": "IEP Ledger",
+       "gloss": "Promised minutes against delivered, weekly"
+      }
+     ]
+    }
+   ],
+   "name": "Thursday",
+   "sub": "THE CASE, AND A SCHOOL ACROSS TOWN"
+  },
+  {
+   "id": "day-friday",
+   "scenes": [
+    {
+     "id": "s12",
+     "ssub": "FRIDAY · BEFORE HE PROMISES",
+     "title": "“Can I realistically commit?” — answered before he answers.",
+     "sline": "Maya asks for the whole migration in one week. The check reads the ledger, the plan and the school week — and answers honestly.",
+     "inbound": null,
+     "leaves": [
+      {
+       "color": "#65a30d",
+       "name": "Commitment Firewall",
+       "family": "timeback",
+       "label": "Commitment Firewall",
+       "gloss": "Can you commit? Checked before promising"
+      }
+     ]
+    },
+    {
+     "id": "s13",
+     "ssub": "FRIDAY · THE PROPOSAL, CHECKED",
+     "title": "The proposal is checked against his confirmed records — before it goes anywhere.",
+     "sline": "The promise needs a proposal. It is checked against the case findings, the ledger and the SOW — repaired as a copy, read back, then sent by him.",
+     "inbound": null,
+     "leaves": [
+      {
+       "color": "#9f1239",
+       "name": "FinalCheck",
+       "family": "finalcheck",
+       "label": "FinalCheck",
+       "gloss": "Outgoing drafts checked against confirmed records"
+      },
+      {
+       "color": "#65a30d",
+       "name": "TimeBack Ledger",
+       "family": "timeback",
+       "label": "TimeBack Ledger",
+       "gloss": "Time back, kept apart: verified, attested"
+      }
+     ]
+    },
+    {
+     "id": "s14",
+     "ssub": "FRIDAY · THE LANDING",
+     "title": "Approved work lands in the file — and is read back.",
+     "sline": "The week's work lands in the project's own file, is priced and confirmed — and Tuesday's open flags are closed on the confirmed words.",
+     "inbound": "⟵ from Tuesday: the contradiction's flags, answered here",
+     "leaves": [
+      {
+       "color": "#854d0e",
+       "name": "Project Sync",
+       "family": "execution",
+       "label": "Project Sync",
+       "gloss": "Work reconciled into the task file"
+      },
+      {
+       "color": "#854d0e",
+       "name": "Revenue Pack",
+       "family": "execution",
+       "label": "Revenue Pack",
+       "gloss": "Change orders priced; billable when approved"
+      },
+      {
+       "color": "#5c42e8",
+       "name": "Profession Packs",
+       "family": "flagships",
+       "label": "Profession Packs",
+       "gloss": "A pack shapes documents and checks"
+      },
+      {
+       "color": "#b91c1c",
+       "name": "Work Guardian",
+       "family": "guardian",
+       "label": "Work Guardian",
+       "gloss": "Claims checked against the approved record"
+      }
+     ]
+    }
+   ],
+   "name": "Friday",
+   "sub": "THE PROMISE, THE LANDING, THE CLOSE"
+  },
+  {
+   "id": "day-friday-evening",
+   "scenes": [
+    {
+     "id": "s15",
+     "ssub": "FRIDAY EVENING · AT HOME, ON WINDOWS",
+     "title": "Home. The receipts for the week.",
+     "sline": "In the hour the old status call used to take: the week's recap, the audit report, and the controls — read before anything leaves.",
+     "inbound": null,
+     "leaves": [
+      {
+       "color": "#5c42e8",
+       "name": "Verifiable Offline Proof + Audit Pack",
+       "family": "flagships",
+       "label": "Verifiable Offline Proof + Audit Pack",
+       "gloss": "The app's internet use, exportable proof"
+      }
+     ]
+    }
+   ],
+   "name": "Friday evening",
+   "sub": "AT HOME, ON WINDOWS"
+  }
+ ],
+ "flows": [
+  {
+   "long": false,
+   "from": null,
+   "to": null,
+   "label": "the spoken intent note"
+  },
+  {
+   "long": false,
+   "from": null,
+   "to": null,
+   "label": "the approval queue — the plan first"
+  },
+  {
+   "long": false,
+   "from": null,
+   "to": null,
+   "label": "the brief + its saved questions"
+  },
+  {
+   "long": false,
+   "from": null,
+   "to": null,
+   "label": "the brief, carried into the room"
+  },
+  {
+   "long": false,
+   "from": null,
+   "to": null,
+   "label": "the transcript"
+  },
+  {
+   "long": false,
+   "from": null,
+   "to": null,
+   "label": "the backed lines — four promises"
+  },
+  {
+   "long": false,
+   "from": null,
+   "to": null,
+   "label": "the ledger"
+  },
+  {
+   "long": false,
+   "from": null,
+   "to": null,
+   "label": "Dana's ledger entry + its evidence timeline"
+  },
+  {
+   "long": false,
+   "from": null,
+   "to": null,
+   "label": "Maya's confirmation — the case's fourth exhibit"
+  },
+  {
+   "long": false,
+   "from": null,
+   "to": null,
+   "label": "Monday's calendar block — Thursday, 14:00"
+  },
+  {
+   "long": false,
+   "from": null,
+   "to": null,
+   "label": "the week's real load"
+  },
+  {
+   "long": false,
+   "from": null,
+   "to": null,
+   "label": "the promise that fits"
+  },
+  {
+   "long": false,
+   "from": null,
+   "to": null,
+   "label": "the sent proposal + the week's ledger"
+  },
+  {
+   "long": false,
+   "from": null,
+   "to": null,
+   "label": "the week's whole record"
+  }
+ ],
+ "longlinks": [
+  {
+   "long": true,
+   "from": "s3",
+   "to": "s10",
+   "label": "also flows to Thursday’s case · the June thread — Monday's find becomes Thursday's exhibit"
+  },
+  {
+   "long": true,
+   "from": "s5",
+   "to": "s9",
+   "label": "also flows to Wednesday’s queue · the corridor recording — transcribed overnight, it joins Wednesday's queue"
+  },
+  {
+   "long": true,
+   "from": "s6",
+   "to": "s14",
+   "label": "also flows to Friday’s landing · the contradiction — Guardian's flags wait, and are answered on Friday"
+  }
+ ]
+}
