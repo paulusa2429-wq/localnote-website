@@ -22,3 +22,4 @@ h1,h2,h3,p{overflow-wrap:break-word}
 @keyframes hp-swing{from{transform:rotate(2.8deg)}to{transform:rotate(-2.8deg)}}
 @media(max-width:720px){.hanging-pin{right:108px}.hanging-pin .hp-thread{height:10px}.hanging-pin img{width:40px;height:40px;border-radius:11px}}
 @media(max-width:720px){.hanging-pin{display:none!important}}
+.doc-nav-sub a{padding:7px 12px 7px 26px;font-size:.8rem;font-weight:600}
