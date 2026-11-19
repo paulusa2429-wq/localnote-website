@@ -48,6 +48,14 @@ a{color:#6943e2}
 <li>The consent log is <b>encrypted and hash-chained</b>, so entries cannot be quietly altered.</li>
 <li>Recordings, transcripts and the app's database are <b>not</b> separately encrypted by LocalNote. Protect them with your operating system's full-disk encryption — FileVault on macOS, BitLocker on Windows — the same control you would apply to any sensitive local file. We state this plainly because a security review should never have to discover it.</li>
 </ul>
+<h2>Your device is the boundary</h2>
+<ul>
+<li>LocalNote's protection assumes your computer account is yours. Anyone who can unlock your device and open your account can open LocalNote, like any other app — on a shared computer, use separate accounts, and lock your screen when you step away.</li>
+<li>Backups copy everything on your disk, including LocalNote's data. If you back up your computer, encrypt the backup too — for example, an encrypted Time Machine backup.</li>
+<li>Full-disk encryption differs by system: FileVault on macOS, BitLocker or device encryption on Windows, LUKS on Linux. Turning it on is the single strongest step you can take.</li>
+</ul>
+<h2>Consent: a reminder is not consent</h2>
+<p>The app shows a consent reminder before recording and keeps a log of each recording's consent — but the reminder does not obtain consent for you. Getting consent from the people you record is your responsibility, as set out in the <a href="terms.html">Terms</a>.</p>
 <h2>Connected tools, on a short leash</h2>
 <ul>
 <li>The local MCP server is <b>off by default</b>. When you switch it on, each AI client is approved individually, limited to the meetings you select, and every access is written to an audit log.</li>
