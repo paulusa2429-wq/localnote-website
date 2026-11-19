@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://localnote.ai/sitemap.xml
