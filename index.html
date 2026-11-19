@@ -124,6 +124,20 @@ html,body{overflow-x:clip}
 .mistake-card:hover .mistake-front::after{transform:translateX(130%)}
 .mistake-card:hover .mistake-face{border-color:#c9b8f5;box-shadow:0 14px 30px rgba(101,64,220,.16)}
 @media (prefers-reduced-motion:reduce){.mistake-card{opacity:1;transform:none;transition:none}.mistake-front::after{display:none}}
+.mistake-card{--h:262}
+.mistake-card:nth-child(7n+2){--h:214}
+.mistake-card:nth-child(7n+3){--h:174}
+.mistake-card:nth-child(7n+4){--h:140}
+.mistake-card:nth-child(7n+5){--h:38}
+.mistake-card:nth-child(7n+6){--h:348}
+.mistake-card:nth-child(7n){--h:318}
+.mistake-grid .mistake-front{background:hsl(var(--h) 85% 95%);border-color:hsl(var(--h) 70% 85%)}
+.mistake-grid .mistake-front b{color:hsl(var(--h) 48% 25%)}
+.mistake-grid .mistake-back{background:hsl(var(--h) 85% 91%);border-color:hsl(var(--h) 70% 83%)}
+.mistake-grid .mistake-back span{color:hsl(var(--h) 30% 30%)}
+.mistake-grid .flip-hint{color:hsl(var(--h) 60% 52%)}
+.mistake-grid .mistake-front::after{background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.45) 50%,transparent 70%)}
+.mistake-grid .mistake-card:hover .mistake-face{border-color:hsl(var(--h) 65% 70%);box-shadow:0 14px 30px hsl(var(--h) 70% 55% / .28)}
 .story-steps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}
 .story-steps li{font-size:13.5px;line-height:1.55;color:var(--muted);border-top:2px solid #E4DEF7;padding-top:9px}
 .story-steps b{display:block;color:var(--ink);font-size:13.5px;margin-bottom:2px}
