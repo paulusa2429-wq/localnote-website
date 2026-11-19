@@ -95,6 +95,9 @@ html,body{overflow-x:clip}
 .doc-links{max-width:860px;margin:14px auto 0;text-align:center;font-size:13.5px;color:var(--muted)}
 .doc-links a{color:var(--purple);text-decoration:none;margin:0 8px}
 .invite-private a{color:var(--purple)}
+.footer-bottom{display:flex;justify-content:space-between;align-items:center;gap:8px 20px;flex-wrap:wrap;margin-top:10px}
+.footer-bottom .doc-links{margin:0}
+.copyright{font-size:10px;line-height:1.5;color:#85808f;margin:0;text-align:right}
 .invite-terms{display:flex;gap:10px;align-items:flex-start;font-size:13.5px;line-height:1.5;color:var(--muted,#5B5470);margin:4px 0 14px;cursor:pointer;text-align:left}
 .invite-terms input{width:17px;height:17px;margin-top:2px;accent-color:var(--purple);flex:none;cursor:pointer}
 .invite-terms a{color:var(--purple);font-weight:600}
@@ -114,6 +117,13 @@ html,body{overflow-x:clip}
 .mistake-back{transform:rotateY(180deg);background:#faf8ff}
 .mistake-back span{font-size:12.5px;line-height:1.55;color:var(--muted)}
 @media (prefers-reduced-motion:reduce){.mistake-flip{transition:none}}
+.mistake-card{opacity:0;transform:translateY(16px);transition:opacity .5s ease,transform .5s ease}
+.mistake-grid.in-view .mistake-card{opacity:1;transform:translateY(0)}
+.mistake-grid.in-view .mistake-card:hover{transform:translateY(-4px)}
+.mistake-front::after{content:'';position:absolute;inset:0;background:linear-gradient(115deg,transparent 30%,rgba(133,101,255,.10) 48%,rgba(133,101,255,.17) 52%,transparent 70%);transform:translateX(-130%);transition:transform .8s ease;pointer-events:none}
+.mistake-card:hover .mistake-front::after{transform:translateX(130%)}
+.mistake-card:hover .mistake-face{border-color:#c9b8f5;box-shadow:0 14px 30px rgba(101,64,220,.16)}
+@media (prefers-reduced-motion:reduce){.mistake-card{opacity:1;transform:none;transition:none}.mistake-front::after{display:none}}
 .story-steps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}
 .story-steps li{font-size:13.5px;line-height:1.55;color:var(--muted);border-top:2px solid #E4DEF7;padding-top:9px}
 .story-steps b{display:block;color:var(--ink);font-size:13.5px;margin-bottom:2px}
@@ -176,6 +186,8 @@ html,body{overflow-x:clip}
 <div class="mistake-card" tabindex="0"><div class="mistake-flip"><div class="mistake-face mistake-front"><b>The reply that never came</b><i class="flip-hint" aria-hidden="true">↻</i></div><div class="mistake-face mistake-back"><span>A follow-up you sent that got no answer doesn’t fade away — it comes back to you as a chase, while there is still time.</span></div></div></div>
 <div class="mistake-card" tabindex="0"><div class="mistake-flip"><div class="mistake-face mistake-front"><b>Personal details in what’s going out</b><i class="flip-hint" aria-hidden="true">↻</i></div><div class="mistake-face mistake-back"><span>An email address, a phone number, or sensitive wording hiding in an outgoing draft is caught — and blocked until you resolve it.</span></div></div></div>
 <div class="mistake-card" tabindex="0"><div class="mistake-flip"><div class="mistake-face mistake-front"><b>The service promised but not delivered</b><i class="flip-hint" aria-hidden="true">↻</i></div><div class="mistake-face mistake-back"><span>For a child’s school services, what was promised is reconciled against what was actually delivered — shortfalls are shown, not smoothed over.</span></div></div></div>
+<div class="mistake-card" tabindex="0"><div class="mistake-flip"><div class="mistake-face mistake-front"><b>The owner who changed</b><i class="flip-hint" aria-hidden="true">↻</i></div><div class="mistake-face mistake-back"><span>One record names Maya as the owner; another names someone else. The conflict is flagged before the work goes to the wrong person.</span></div></div></div>
+<div class="mistake-card" tabindex="0"><div class="mistake-flip"><div class="mistake-face mistake-front"><b>The claim that couldn’t be settled</b><i class="flip-hint" aria-hidden="true">↻</i></div><div class="mistake-face mistake-back"><span>Where the record can’t settle a claim either way, the report says “unable to determine” — it never guesses it through.</span></div></div></div>
 </div>
 </section>
 <nav aria-label="Jump to a LocalNote capability" class="category-jump"><a href="#capability-1">Capture</a><a href="#capability-2">Memory</a><a href="#capability-3">Writing</a><a href="#capability-4">Ahead of you</a><a href="#capability-5">Proof</a><a href="#capability-6">Workday</a><a href="#capability-7">Specialized work</a><a href="#capability-8">Local tools</a><a href="#feature-finalcheck">FinalCheck</a></nav>
@@ -268,7 +280,7 @@ html,body{overflow-x:clip}
 
 
 <p class="legal">Illustrative examples use fictional information. Feature/platform support must be verified against release builds.</p>
-<p class="doc-links"><a href="privacy.html">Privacy</a>·<a href="terms.html">Terms</a>·<a href="security.html">Security</a></p></main>
+<div class="footer-bottom"><p class="doc-links"><a href="privacy.html">Privacy</a>·<a href="terms.html">Terms</a>·<a href="security.html">Security</a></p><p class="copyright">© 2026 LocalNote. All rights reserved.</p></div></main>
 <div aria-hidden="true" class="invite-modal" id="invite-modal"><div class="invite-backdrop" data-close-invite="true"></div><section aria-labelledby="invite-heading" aria-modal="true" class="invite-dialog" role="dialog" tabindex="-1"><button aria-label="Close invitation form" class="invite-close" type="button">×</button><div class="invite-eyebrow">LOCALNOTE · PRIVATE ACCESS</div><h2 id="invite-heading">Request your invite.</h2><p class="invite-intro">Free during early access. Available by invitation only. Choose your operating system and provide your email.</p><form id="invite-form"><label for="invite-email">Email address</label><input autocomplete="email" id="invite-email" maxlength="254" name="email" placeholder="you@example.com" required="" type="email"/><label for="invite-os">Which OS will you use?</label><select id="invite-os" name="operating_system" required=""><option disabled="" selected="" value="">Select your operating system</option><option value="macOS">macOS</option><option value="Windows">Windows</option><option value="Linux">Linux</option></select><input type="text" name="_honey" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0"><label class="invite-terms"><input id="invite-terms" name="terms_accepted" required="" type="checkbox" value="yes"/><span>I agree to the <a href="terms.html" rel="noopener" target="_blank">Terms</a> and the <a href="privacy.html" rel="noopener" target="_blank">Privacy Policy</a>.</span></label><button class="invite-submit" type="submit">Request Invite →</button><p aria-live="polite" class="invite-message" id="invite-message" role="status"></p><p class="invite-private">No account is created and no access is granted until an invitation is approved.</p><p class="invite-private">Your email is used only for your invite request — one acknowledgement email, and your invitation if approved. No marketing, and never sold. <a href="privacy.html#invite-requests">How invite requests are handled</a></p><p class="invite-next"><b>What happens next:</b> you will receive an acknowledgement email. Invitations are sent in small batches after approval — if yours is approved, the invitation arrives at this same address.</p></form></section></div><script>window.LOCALNOTE_INVITE_ENDPOINT="https://formsubmit.co/ajax/b04c406392ae04994dc56413fbdcbb49";</script><script>
 /* To enable real submissions, set window.LOCALNOTE_INVITE_ENDPOINT to your HTTPS API endpoint
    before this script. Until then, the form does not pretend to submit requests. */
@@ -378,5 +390,5 @@ document.querySelectorAll('.info-tab').forEach(function(btn){
   });
 });
 </script>
-<script>(()=>{document.querySelectorAll('.mistake-card').forEach(c=>{c.addEventListener('click',()=>c.classList.toggle('flipped'));});})();</script>
+<script>(()=>{const cards=Array.from(document.querySelectorAll('.mistake-card'));cards.forEach(c=>{c.addEventListener('click',()=>c.classList.toggle('flipped'));});const grid=document.querySelector('.mistake-grid');if(!grid)return;if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){grid.classList.add('in-view');return;}cards.forEach((c,i)=>{c.style.transitionDelay=((i%7)*45)+'ms';});let taught=false;const io=new IntersectionObserver(es=>{es.forEach(e=>{if(!e.isIntersecting)return;grid.classList.add('in-view');io.disconnect();setTimeout(()=>{cards.forEach(c=>{c.style.transitionDelay='';});},2000);if(!taught){taught=true;setTimeout(()=>{if(!cards[0].classList.contains('flipped')){cards[0].classList.add('flipped');setTimeout(()=>cards[0].classList.remove('flipped'),2100);}},1000);}});},{threshold:.12});io.observe(grid);})();</script>
 </body></html>
