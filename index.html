@@ -77,13 +77,14 @@ html,body{overflow-x:clip}
 <style>
 /* Trust docs — 2026-11-19 */
 .hero-benefits{font-size:17.5px;font-weight:650;letter-spacing:-.15px;color:#17141f;margin:14px 0 0;line-height:1.45}
-.info-panel{max-width:1060px;margin:34px auto 0;background:linear-gradient(180deg,#FDFCFF,#F3F0FF);border:1px solid #E3DCFA;border-radius:24px;padding:26px;box-shadow:0 24px 48px -18px rgba(84,60,190,.28),0 4px 14px rgba(84,60,190,.10),inset 0 1px 0 #fff}
-.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
-.info-cell{background:#fff;border:1px solid #E7E2F7;border-radius:17px;padding:20px 22px;box-shadow:0 10px 22px -12px rgba(84,60,190,.25),inset 0 1px 0 #fff}
-.info-cell h3{margin:0 0 10px;font-size:19px;letter-spacing:-.01em}
-.info-cell ul{margin:0;padding:0;list-style:none;display:grid;gap:8px}
-.info-cell li{font-size:14.5px;line-height:1.5;color:var(--ink)}
-@media (max-width:760px){.info-grid{grid-template-columns:1fr}.info-panel{padding:16px}}
+.info-tabs{max-width:1060px;margin:34px auto 0;background:#fff;border:1px solid #E3DCFA;border-radius:24px;box-shadow:0 24px 48px -18px rgba(84,60,190,.28),0 4px 14px rgba(84,60,190,.10),inset 0 1px 0 #fff;overflow:hidden}
+.info-tabbar{display:flex;gap:6px;padding:14px 14px 0;flex-wrap:wrap}
+.info-tab{border:1px solid #E3DCFA;background:#F5F2FF;color:var(--ink);border-radius:999px;padding:9px 18px;font:inherit;font-weight:700;font-size:14px;cursor:pointer}
+.info-tab.on{background:#6C4CF1;color:#fff;border-color:#6C4CF1}
+.info-pane{padding:22px 28px 26px}
+.info-pane h3{margin:0 0 10px;font-size:19px;letter-spacing:-.01em}
+.info-pane ul{margin:0;padding:0;list-style:none;display:grid;gap:8px}
+.info-pane li{font-size:14.5px;line-height:1.5;color:var(--ink)}
 .story-band{box-shadow:0 18px 38px -18px rgba(84,60,190,.30),inset 0 1px 0 #fff}
 .trust-block{max-width:860px;margin:56px auto 0;padding:26px 28px;border:1px solid var(--line);border-radius:18px;background:#FBFAFF}
 .trust-block h2{font-size:20px;margin:0 0 14px;letter-spacing:-.01em}
@@ -189,30 +190,27 @@ html,body{overflow-x:clip}
 </div>
 <p class="roast-disclaimer">Illustrative interpretation of the supplied Acme demo, not a verbatim transcript or a live fact-checker. Review the original source before relying on any claim.</p>
 </section>
-<aside aria-label="A note from the founder" class="founder-note"><span class="founder-eyebrow">A note from the founder</span><p>Important work should not disappear into meeting notes. LocalNote is being built to help you keep the context, catch what changed, and move forward with evidence—without giving up control of your data.</p><span class="founder-signoff">— Founder, LocalNote</span><p class="status-note"><b>Where it stands today:</b> invited testers already use the desktop app for recording, transcripts, summaries, commitments and the proof checks on this page. The newest workflow tools are being switched on in stages during early access — and mobile apps are still in development.</p></aside><footer class="cta-row"><button aria-controls="invite-modal" aria-haspopup="dialog" class="cta js-invite-open" type="button">Request Invite →</button><span class="invite">Free during early access · By invitation only.</span></footer><section class="info-panel" aria-label="Requirements, availability and trust">
-<div class="info-grid">
-<div class="info-cell"><h2>Can your computer run it?</h2>
+<aside aria-label="A note from the founder" class="founder-note"><span class="founder-eyebrow">A note from the founder</span><p>Important work should not disappear into meeting notes. LocalNote is being built to help you keep the context, catch what changed, and move forward with evidence—without giving up control of your data.</p><span class="founder-signoff">— Founder, LocalNote</span><p class="status-note"><b>Where it stands today:</b> invited testers already use the desktop app for recording, transcripts, summaries, commitments and the proof checks on this page. The newest workflow tools are being switched on in stages during early access — and mobile apps are still in development.</p></aside><footer class="cta-row"><button aria-controls="invite-modal" aria-haspopup="dialog" class="cta js-invite-open" type="button">Request Invite →</button><span class="invite">Free during early access · By invitation only.</span></footer><section class="info-tabs" aria-label="Requirements, availability and trust">
+<div class="info-tabbar" role="tablist"><button type="button" class="info-tab on" data-tab="0" role="tab" aria-selected="true">Requirements</button><button type="button" class="info-tab" data-tab="1" role="tab" aria-selected="false">Availability</button><button type="button" class="info-tab" data-tab="2" role="tab" aria-selected="false">First 10 minutes</button><button type="button" class="info-tab" data-tab="3" role="tab" aria-selected="false">Trust</button></div>
+<div class="info-pane" data-pane="0" role="tabpanel"><h3>Can your computer run it?</h3>
 <ul>
 <li><b>Platforms</b> — macOS (Apple Silicon, macOS 14.4 or later), Windows 10 or later (64-bit), Linux (64-bit; Ubuntu 22.04 or later, or an equivalent distribution).</li>
 <li><b>One-time download</b> — About 4.8 GB of AI models during setup. After that, core work runs without internet.</li>
 <li><b>Minimum</b> — 8 GB of RAM, and about 6 GB of free disk for the app and its models — plus room for your own recordings, which live on your disk.</li>
 <li><b>Recommended</b> — 16 GB of RAM, so the advanced AI features run comfortably. Apple Silicon gives the fastest transcription; Intel machines work, and long recordings take longer.</li>
 <li><b>Internet</b> — Needed for setup and downloads only — never for your meetings.</li>
-</ul></div>
-<div class="info-cell"><h3>Available today — and what is still rolling out</h3>
+</ul></div><div class="info-pane" data-pane="1" role="tabpanel" hidden><h3>Available today — and what is still rolling out</h3>
 <ul>
 <li><b>Available today</b> — recording, transcripts, summaries, the commitments ledger and the proof checks.</li>
 <li><b>Rolling out in stages</b> — the newest workflow tools are switched on wave by wave during early access.</li>
 <li><b>Still in development</b> — the mobile apps.</li>
-</ul></div>
-<div class="info-cell"><h3>Your first 10 minutes (after the one-time download)</h3>
+</ul></div><div class="info-pane" data-pane="2" role="tabpanel" hidden><h3>Your first 10 minutes (after the one-time download)</h3>
 <ul>
 <li><b>Install</b> — about two minutes.</li>
 <li><b>Set up</b> — choose your language and run the 30-second microphone check.</li>
 <li><b>Record</b> — a short test conversation is enough.</li>
 <li><b>See it work</b> — your transcript, summary and tracked commitments, waiting on My Day.</li>
-</ul></div>
-<div class="info-cell"><h2>Trust, in plain terms</h2>
+</ul></div><div class="info-pane" data-pane="3" role="tabpanel" hidden><h3>Trust, in plain terms</h3>
 <ul>
 <li><b>Recording consent</b> — A reminder shows before every recording, and each recording's consent is kept in an encrypted log on your device.</li>
 <li><b>Retention</b> — Your meetings live on your computer, for as long as you keep them. There is no LocalNote copy.</li>
@@ -220,7 +218,6 @@ html,body{overflow-x:clip}
 <li><b>Optional sharing</b> — Nothing leaves your device unless you export it, or switch on a local tool — off by default, and every read is logged.</li>
 <li><b>Updates &amp; network</b> — After the one-time setup download, core work needs no internet. Downloads happen only when you start them.</li>
 </ul></div>
-</div>
 </section>
 
 
@@ -316,5 +313,14 @@ form.addEventListener('submit',async e=>{
     card.addEventListener('mouseleave',function(){ card.style.transform=''; });
   });
 })();
+</script>
+<script>
+document.querySelectorAll('.info-tab').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    var wrap = btn.closest('.info-tabs');
+    wrap.querySelectorAll('.info-tab').forEach(function(b){ b.classList.toggle('on', b === btn); b.setAttribute('aria-selected', b === btn ? 'true' : 'false'); });
+    wrap.querySelectorAll('.info-pane').forEach(function(p){ p.hidden = p.getAttribute('data-pane') !== btn.getAttribute('data-tab'); });
+  });
+});
 </script>
 </body></html>
