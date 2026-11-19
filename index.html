@@ -236,8 +236,8 @@ const modal=document.getElementById('invite-modal'), dialog=modal.querySelector(
 const form=document.getElementById('invite-form'), msg=document.getElementById('invite-message');
 const openers=Array.from(document.querySelectorAll('.js-invite-open'));
 let previousFocus=null;
-const open=()=>{previousFocus=document.activeElement;modal.setAttribute('aria-hidden','false');document.body.style.overflow='hidden';msg.textContent='';document.getElementById('invite-email').focus();};
-const close=()=>{modal.setAttribute('aria-hidden','true');document.body.style.overflow='';if(previousFocus && previousFocus.focus)previousFocus.focus();};
+const open=()=>{previousFocus=document.activeElement;modal.setAttribute('aria-hidden','false');document.body.style.overflow='hidden';document.documentElement.style.overflow='hidden';msg.textContent='';document.getElementById('invite-email').focus();};
+const close=()=>{modal.setAttribute('aria-hidden','true');document.body.style.overflow='';document.documentElement.style.overflow='';if(previousFocus && previousFocus.focus)previousFocus.focus();};
 openers.forEach(button=>button.addEventListener('click',open));
 modal.querySelector('.invite-close').addEventListener('click',close);
 modal.querySelector('.invite-backdrop').addEventListener('click',close);
