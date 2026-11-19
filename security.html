@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Security — LocalNote</title>
+<meta name="description" content="Security for LocalNote, the private offline AI meeting app."/>
+<link rel="icon" type="image/png" href="assets/favicon.png"/>
+<style>
+@font-face{font-family:Inter;src:url(assets/fonts/inter-latin-400.woff2) format("woff2");font-weight:400;font-display:swap}
+@font-face{font-family:Inter;src:url(assets/fonts/inter-latin-600.woff2) format("woff2");font-weight:600;font-display:swap}
+@font-face{font-family:Inter;src:url(assets/fonts/inter-latin-800.woff2) format("woff2");font-weight:800;font-display:swap}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,system-ui,-apple-system,'Segoe UI',sans-serif;color:#191720;background:#fff;-webkit-font-smoothing:antialiased}
+.wrap{max-width:760px;margin:0 auto;padding:28px 22px 56px}
+.brand{display:flex;align-items:center;gap:8px;text-decoration:none;color:#191720;font-weight:800;font-size:17px}
+.brand img{width:29px;height:21px}
+h1{font-size:30px;letter-spacing:-.02em;margin:34px 0 6px}
+.updated{color:#5b5964;font-size:13.5px;margin:0 0 26px}
+h2{font-size:18.5px;margin:30px 0 8px;letter-spacing:-.01em}
+p,li{font-size:15.5px;line-height:1.65;color:#2c2a33}
+ul{padding-left:20px;margin:6px 0}
+a{color:#6943e2}
+.foot{margin-top:44px;padding-top:18px;border-top:1px solid #e9e6f1;font-size:13.5px;color:#5b5964}
+.foot a{margin-right:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<a class="brand" href="index.html"><img src="assets/pin.png" alt=""/>LocalNote</a>
+<h1>Security</h1>
+<p class="updated">Last updated 19 November 2026</p>
+
+<p>Everything here describes the shipped app, stated exactly as it is — including the parts that are <i>not</i> encrypted.</p>
+<h2>Where the data goes — and doesn't</h2>
+<ul>
+<li>A meeting is recorded by the app on your computer. Transcription and all AI processing run on that computer. Transcripts, summaries, ledgers and documents are stored on that computer.</li>
+<li>LocalNote operates no server that receives customer meeting data. Nothing is uploaded for processing, because there is nothing to upload to.</li>
+<li>Files leave the machine only when you export or send them.</li>
+</ul>
+<h2>Models and network behavior</h2>
+<ul>
+<li>Speech and language models are open-weight models downloaded once during setup (about 4.8&nbsp;GB in total) from their public repositories, then used entirely on-device. Additional models download only when you choose them.</li>
+<li>After setup, core work needs no internet at all — it runs in airplane mode. The app connects to the network only for downloads you start (setup, models, updates) and, if you opt in, anonymous usage counts — off by default.</li>
+</ul>
+<h2>Encryption, stated exactly</h2>
+<ul>
+<li>The consent log is <b>encrypted and hash-chained</b>, so entries cannot be quietly altered.</li>
+<li>Recordings, transcripts and the app's database are <b>not</b> separately encrypted by LocalNote. Protect them with your operating system's full-disk encryption — FileVault on macOS, BitLocker on Windows — the same control you would apply to any sensitive local file. We state this plainly because a security review should never have to discover it.</li>
+</ul>
+<h2>Connected tools, on a short leash</h2>
+<ul>
+<li>The local MCP server is <b>off by default</b>. When you switch it on, each AI client is approved individually, limited to the meetings you select, and every access is written to an audit log.</li>
+<li>Local is not the same as offline: a connected client is a deliberate, logged exception you grant — never a background behavior. If that client uses an online AI, what it reads goes to that AI.</li>
+</ul>
+<h2>Licensing</h2>
+<ul>
+<li>License keys are cryptographically signed and verified on your device. There is no server check and no location or IP tracking in the app.</li>
+</ul>
+
+<div class="foot"><a href="index.html">Home</a><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="security.html">Security</a><br/><br/>Questions: <a href="mailto:support@localnote.ai">support@localnote.ai</a></div>
+</div>
+</body>
+</html>
