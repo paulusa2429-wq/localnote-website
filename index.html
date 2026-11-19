@@ -103,6 +103,11 @@ html,body{overflow-x:clip}
 .story-band{max-width:none;margin:8px auto 6px;padding:24px 26px;border:1px solid var(--line);border-radius:18px;background:#fff}
 .story-band h2{font-size:19px;margin:0 0 4px;letter-spacing:-.01em}
 .story-band .story-sub{font-size:13.5px;color:var(--muted);margin:0 0 16px}
+.mistake-head{font-size:13.5px;font-weight:650;margin:18px 0 10px}
+.mistake-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}
+.mistake-card{border:1px solid #e7e4ef;border-radius:14px;background:#fff;box-shadow:var(--shadow);padding:12px 14px}
+.mistake-card b{display:block;font-size:13px;font-weight:700;margin-bottom:3px}
+.mistake-card span{font-size:12px;line-height:1.5;color:var(--muted)}
 .story-steps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}
 .story-steps li{font-size:13.5px;line-height:1.55;color:var(--muted);border-top:2px solid #E4DEF7;padding-top:9px}
 .story-steps b{display:block;color:var(--ink);font-size:13.5px;margin-bottom:2px}
@@ -114,7 +119,7 @@ html,body{overflow-x:clip}
 <section class="hero"><h1>The AI that remembers your meetings —<br/><strong>and helps you get things done. Privately.</strong></h1><p class="description">A private AI work partner that remembers commitments, spots costly changes, protects your time and prepares work you can verify. It helps turn conversations, plans and decisions into results—with you in control.</p><p class="hero-benefits">Remember every promise. Catch costly changes. Prepare your next move. Verify the work before it goes out.</p>
 <p class="hero-offline">Your core AI workflows run on-device, even without internet, after initial setup — and no bot ever joins your meetings.</p><div class="privacy-line"><span aria-hidden="true" class="pulse"></span><span><strong>Airplane mode? No problem. Your work keeps moving.</strong></span></div></section><section class="story-band" aria-label="One call, start to finish">
 <h2>One call, start to finish</h2>
-<p class="story-sub">The same Acme renewal, followed through every screenshot on this page:</p>
+<p class="story-sub">One example meeting — the Acme renewal — followed through every screenshot on this page. <strong>Demo data:</strong> Acme is a fictional company; every name and number here is invented for the demo, not a real customer’s.</p>
 <ol class="story-steps">
 <li><span class="n">STEP 1</span><b>Record</b>The renewal call is recorded on your computer — no bot joins, and the words are kept word for word.</li>
 <li><span class="n">STEP 2</span><b>Remember</b>The summary pulls out the decisions: twelve seats, renewal before December, four thousand with onboarding included.</li>
@@ -124,18 +129,31 @@ html,body{overflow-x:clip}
 </ol>
 </section>
 <section class="story-band" aria-label="Product walkthrough video">
-<h2>Watch it work — 2:10</h2>
-<p class="story-sub">The Acme renewal, start to finish:</p>
+<h2>See it in action</h2>
+<p class="story-sub">Want to see the features working? Press play — one example meeting (demo data), start to finish:</p>
 <video controls preload="none" poster="assets/demo-poster-v5.jpg" style="width:100%;border-radius:14px;display:block;box-shadow:0 16px 34px -16px rgba(84,60,190,.35)"><source src="assets/demo-walkthrough-v5.mp4" type="video/mp4"></video>
 </section>
 <section class="story-band" aria-label="An AI mistake, caught">
 <h2>A mistake, caught before it cost anything</h2>
-<p class="story-sub">From the same Acme example:</p>
+<p class="story-sub">From the same example meeting:</p>
 <ol class="story-steps">
 <li><span class="n">THE DRAFT</span><b>Said</b>The follow-up email said onboarding was included in the price — because that is what the call had agreed.</li>
 <li><span class="n">THE CHECK</span><b>Caught</b>Said vs Written compared the draft with the written quote — which bills onboarding separately — and flagged the mismatch before anything was sent.</li>
 <li><span class="n">THE FIX</span><b>Corrected</b>The draft was corrected, and the difference raised with the client — with the original words attached as proof.</li>
 </ol>
+
+<p class="mistake-head">And that is only one kind of mistake. The same watch runs over every meeting and document:</p>
+<div class="mistake-grid">
+<div class="mistake-card"><b>The changed number</b><span>The call agreed 4,000; a later document says 3,200. Both versions are shown side by side, with the exact words as proof.</span></div>
+<div class="mistake-card"><b>The date that moved</b><span>A deadline in writing no longer matches the date agreed out loud — flagged against the record.</span></div>
+<div class="mistake-card"><b>The claim nobody made</b><span>A summary or draft states something that was never said. The no-invention check flags it instead of letting it pass as fact.</span></div>
+<div class="mistake-card"><b>The quote that isn’t exact</b><span>Quoted words are checked word for word against the record — translations included — before they are used as evidence.</span></div>
+<div class="mistake-card"><b>Scope creep</b><span>Work quietly growing beyond what was agreed is flagged while it is still small.</span></div>
+<div class="mistake-card"><b>The promise about to slip</b><span>Every promise with a date is tracked until it closes — and you are reminded before it goes overdue, not after.</span></div>
+<div class="mistake-card"><b>Private words, wrong audience</b><span>Prepared work about to carry one meeting’s words to someone who was not in that meeting is stopped for your review.</span></div>
+<div class="mistake-card"><b>The assumption treated as agreed</b><span>Anything being assumed without proof is challenged before it costs you.</span></div>
+<div class="mistake-card"><b>Errors in what’s about to go out</b><span>Before a document is sent, its facts, names and numbers get one final check against the record.</span></div>
+</div>
 </section>
 <nav aria-label="Jump to a LocalNote capability" class="category-jump"><a href="#capability-1">Capture</a><a href="#capability-2">Memory</a><a href="#capability-3">Writing</a><a href="#capability-4">Ahead of you</a><a href="#capability-5">Proof</a><a href="#capability-6">Workday</a><a href="#capability-7">Specialized work</a><a href="#capability-8">Local tools</a><a href="#feature-finalcheck">FinalCheck</a></nav>
 
