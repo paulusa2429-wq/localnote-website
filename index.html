@@ -281,12 +281,21 @@ form.addEventListener('submit',async e=>{
  }
  const submit=form.querySelector('[type=submit]');submit.disabled=true;
  msg.textContent='Submitting request…';
+ const slowNote=setTimeout(()=>{msg.textContent='Still sending \u2014 the request service is slow today; this can take up to a minute. Please keep this open.';},10000);
  try{
-  const response=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(request)});
-  if(!response.ok)throw new Error('Request not accepted');
-  msg.textContent='Request received. Access is granted only after approval.';
-  form.reset();
- }catch(err){msg.textContent='Could not submit your request. Please try again.';}
+  const send=fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(request),keepalive:true});
+  const limit=new Promise(resolve=>setTimeout(()=>resolve(null),25000));
+  const response=await Promise.race([send,limit]);
+  clearTimeout(slowNote);
+  if(response===null){
+   send.then(r=>{if(r&&r.ok){msg.textContent='Request received. Access is granted only after approval.';form.reset();}}).catch(()=>{});
+   msg.textContent='This is taking longer than usual to confirm \u2014 your request is very likely with us. If no acknowledgement email arrives within about 15 minutes, please email invites@localnote.ai.';
+  }else{
+   if(!response.ok)throw new Error('Request not accepted');
+   msg.textContent='Request received. Access is granted only after approval.';
+   form.reset();
+  }
+ }catch(err){clearTimeout(slowNote);msg.textContent='Could not submit your request. Please try again, or email invites@localnote.ai.';}
  finally{submit.disabled=false;}
 });
 })();
