@@ -77,6 +77,14 @@ html,body{overflow-x:clip}
 <style>
 /* Trust docs — 2026-11-19 */
 .hero-benefits{font-size:17.5px;font-weight:650;letter-spacing:-.15px;color:#17141f;margin:14px 0 0;line-height:1.45}
+.info-panel{max-width:1060px;margin:34px auto 0;background:linear-gradient(180deg,#FDFCFF,#F3F0FF);border:1px solid #E3DCFA;border-radius:24px;padding:26px;box-shadow:0 24px 48px -18px rgba(84,60,190,.28),0 4px 14px rgba(84,60,190,.10),inset 0 1px 0 #fff}
+.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.info-cell{background:#fff;border:1px solid #E7E2F7;border-radius:17px;padding:20px 22px;box-shadow:0 10px 22px -12px rgba(84,60,190,.25),inset 0 1px 0 #fff}
+.info-cell h3{margin:0 0 10px;font-size:19px;letter-spacing:-.01em}
+.info-cell ul{margin:0;padding:0;list-style:none;display:grid;gap:8px}
+.info-cell li{font-size:14.5px;line-height:1.5;color:var(--ink)}
+@media (max-width:760px){.info-grid{grid-template-columns:1fr}.info-panel{padding:16px}}
+.story-band{box-shadow:0 18px 38px -18px rgba(84,60,190,.30),inset 0 1px 0 #fff}
 .trust-block{max-width:860px;margin:56px auto 0;padding:26px 28px;border:1px solid var(--line);border-radius:18px;background:#FBFAFF}
 .trust-block h2{font-size:20px;margin:0 0 14px;letter-spacing:-.01em}
 .trust-block ul{list-style:none;margin:0;padding:0;display:grid;gap:10px}
@@ -111,6 +119,11 @@ html,body{overflow-x:clip}
 <li><span class="n">STEP 4</span><b>Catch</b>The quote document arrives saying onboarding is billed separately. Said vs Written flags the change against the call.</li>
 <li><span class="n">STEP 5</span><b>Finish</b>Your follow-up is drafted from the call itself. You approve it, it goes out — and the proof stays attached.</li>
 </ol>
+</section>
+<section class="story-band" aria-label="Product walkthrough video">
+<h2>Watch it work — 72 seconds</h2>
+<p class="story-sub">The Acme renewal, start to finish:</p>
+<video controls preload="none" poster="assets/demo-poster.jpg" style="width:100%;border-radius:14px;display:block;box-shadow:0 16px 34px -16px rgba(84,60,190,.35)"><source src="assets/demo-walkthrough.mp4" type="video/mp4"></video>
 </section>
 <section class="story-band" aria-label="An AI mistake, caught">
 <h2>A mistake, caught before it cost anything</h2>
@@ -175,43 +188,42 @@ html,body{overflow-x:clip}
 </div>
 <p class="roast-disclaimer">Illustrative interpretation of the supplied Acme demo, not a verbatim transcript or a live fact-checker. Review the original source before relying on any claim.</p>
 </section>
-<aside aria-label="A note from the founder" class="founder-note"><span class="founder-eyebrow">A note from the founder</span><p>Important work should not disappear into meeting notes. LocalNote is being built to help you keep the context, catch what changed, and move forward with evidence—without giving up control of your data.</p><span class="founder-signoff">— Founder, LocalNote</span><p class="status-note"><b>Where it stands today:</b> invited testers already use the desktop app for recording, transcripts, summaries, commitments and the proof checks on this page. The newest workflow tools are being switched on in stages during early access — and mobile apps are still in development.</p></aside><footer class="cta-row"><button aria-controls="invite-modal" aria-haspopup="dialog" class="cta js-invite-open" type="button">Request Invite →</button><span class="invite">Free during early access · By invitation only.</span></footer><section class="trust-block" aria-label="System requirements">
-<h2>Can your computer run it?</h2>
+<aside aria-label="A note from the founder" class="founder-note"><span class="founder-eyebrow">A note from the founder</span><p>Important work should not disappear into meeting notes. LocalNote is being built to help you keep the context, catch what changed, and move forward with evidence—without giving up control of your data.</p><span class="founder-signoff">— Founder, LocalNote</span><p class="status-note"><b>Where it stands today:</b> invited testers already use the desktop app for recording, transcripts, summaries, commitments and the proof checks on this page. The newest workflow tools are being switched on in stages during early access — and mobile apps are still in development.</p></aside><footer class="cta-row"><button aria-controls="invite-modal" aria-haspopup="dialog" class="cta js-invite-open" type="button">Request Invite →</button><span class="invite">Free during early access · By invitation only.</span></footer><section class="info-panel" aria-label="Requirements, availability and trust">
+<div class="info-grid">
+<div class="info-cell"><h2>Can your computer run it?</h2>
 <ul>
 <li><b>Platforms</b> — macOS (Apple Silicon, macOS 14.4 or later), Windows 10 or later (64-bit), Linux (64-bit; Ubuntu 22.04 or later, or an equivalent distribution).</li>
 <li><b>One-time download</b> — About 4.8 GB of AI models during setup. After that, core work runs without internet.</li>
 <li><b>Minimum</b> — 8 GB of RAM, and about 6 GB of free disk for the app and its models — plus room for your own recordings, which live on your disk.</li>
 <li><b>Recommended</b> — 16 GB of RAM, so the advanced AI features run comfortably. Apple Silicon gives the fastest transcription; Intel machines work, and long recordings take longer.</li>
 <li><b>Internet</b> — Needed for setup and downloads only — never for your meetings.</li>
-</ul>
-</section>
-<section class="trust-block" aria-label="Availability">
-<h3>Available today — and what is still rolling out</h3>
+</ul></div>
+<div class="info-cell"><h3>Available today — and what is still rolling out</h3>
 <ul>
 <li><b>Available today</b> — recording, transcripts, summaries, the commitments ledger and the proof checks.</li>
 <li><b>Rolling out in stages</b> — the newest workflow tools are switched on wave by wave during early access.</li>
 <li><b>Still in development</b> — the mobile apps.</li>
-</ul>
-</section>
-<section class="trust-block" aria-label="Your first 10 minutes">
-<h3>Your first 10 minutes (after the one-time download)</h3>
+</ul></div>
+<div class="info-cell"><h3>Your first 10 minutes (after the one-time download)</h3>
 <ul>
 <li><b>Install</b> — about two minutes.</li>
 <li><b>Set up</b> — choose your language and run the 30-second microphone check.</li>
 <li><b>Record</b> — a short test conversation is enough.</li>
 <li><b>See it work</b> — your transcript, summary and tracked commitments, waiting on My Day.</li>
-</ul>
-</section>
-<section class="trust-block" aria-label="Trust and privacy">
-<h2>Trust, in plain terms</h2>
+</ul></div>
+<div class="info-cell"><h2>Trust, in plain terms</h2>
 <ul>
 <li><b>Recording consent</b> — A reminder shows before every recording, and each recording's consent is kept in an encrypted log on your device.</li>
 <li><b>Retention</b> — Your meetings live on your computer, for as long as you keep them. There is no LocalNote copy.</li>
 <li><b>Deletion</b> — Delete any meeting or recording in the app, any time. There is nothing on our side to delete.</li>
 <li><b>Optional sharing</b> — Nothing leaves your device unless you export it, or switch on a local tool — off by default, and every read is logged.</li>
 <li><b>Updates &amp; network</b> — After the one-time setup download, core work needs no internet. Downloads happen only when you start them.</li>
-</ul>
+</ul></div>
+</div>
 </section>
+
+
+
 <p class="legal">Illustrative examples use fictional information. Feature/platform support must be verified against release builds.</p>
 <p class="doc-links"><a href="privacy.html">Privacy</a>·<a href="terms.html">Terms</a>·<a href="security.html">Security</a></p></main>
 <div aria-hidden="true" class="invite-modal" id="invite-modal"><div class="invite-backdrop" data-close-invite="true"></div><section aria-labelledby="invite-heading" aria-modal="true" class="invite-dialog" role="dialog" tabindex="-1"><button aria-label="Close invitation form" class="invite-close" type="button">×</button><div class="invite-eyebrow">LOCALNOTE · PRIVATE ACCESS</div><h2 id="invite-heading">Request your invite.</h2><p class="invite-intro">Free during early access. Available by invitation only. Choose your operating system and provide your email.</p><form id="invite-form"><label for="invite-email">Email address</label><input autocomplete="email" id="invite-email" maxlength="254" name="email" placeholder="you@example.com" required="" type="email"/><label for="invite-os">Which OS will you use?</label><select id="invite-os" name="operating_system" required=""><option disabled="" selected="" value="">Select your operating system</option><option value="macOS">macOS</option><option value="Windows">Windows</option><option value="Linux">Linux</option></select><input type="text" name="_honey" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0"><button class="invite-submit" type="submit">Request Invite →</button><p aria-live="polite" class="invite-message" id="invite-message" role="status"></p><p class="invite-private">No account is created and no access is granted until an invitation is approved.</p><p class="invite-private">Your email is used only for your invite request — one acknowledgement email, and your invitation if approved. No marketing, and never sold. <a href="privacy.html#invite-requests">How invite requests are handled</a></p><p class="invite-next"><b>What happens next:</b> an acknowledgement email reaches you within about 15 minutes. Invitations are sent in small batches after approval — if yours is approved, the invitation arrives at this same address.</p></form></section></div><script>window.LOCALNOTE_INVITE_ENDPOINT="https://formsubmit.co/ajax/b04c406392ae04994dc56413fbdcbb49";</script><script>
