@@ -266,11 +266,28 @@ html,body{overflow-x:clip}
 .story-steps .n{color:#642DF4;font-weight:800;font-size:12px;letter-spacing:.05em}
 .invite-next{font-size:11.5px;color:#5b5964;line-height:1.55;margin:8px 0 0;border-top:1px solid #eee9f4;padding-top:9px}
 .trio-band{margin:34px 0 0}.trio-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}.trio-card{margin:0;background:#fff;border:1px solid #e7e2f5;border-radius:16px;overflow:hidden;box-shadow:0 10px 30px #1A0A350d}.trio-card img{width:100%;height:auto;display:block}.trio-card figcaption{padding:14px 18px 16px;display:grid;gap:4px}.trio-card figcaption b{font-size:17px;color:#241a4d}.trio-card figcaption span{font-size:14.5px;line-height:1.5;color:#57536b}@media(max-width:820px){.trio-grid{grid-template-columns:1fr}}.faq-band{margin:38px 0 0;background:#fff;border:1px solid #e7e2f5;border-radius:16px;padding:24px 28px 26px;box-shadow:0 10px 30px #1A0A350d}.faq-band h2{margin:0 0 12px;font-size:32px;font-weight:700;line-height:1.18;letter-spacing:-.01em}.faq-band ul{margin:0;padding:0;list-style:none;display:grid;gap:10px}.faq-band li{font-size:15px;line-height:1.55;color:#3d3852}.features-toggle{display:flex;justify-content:center;margin:34px 0 4px}#features-more{font:inherit;font-size:15px;font-weight:700;color:#fff;background:var(--purple);border:0;border-radius:999px;padding:13px 26px;cursor:pointer}#all-features{margin-top:10px}
-.trio-card .shot-open{padding:0;background:none;cursor:zoom-in;display:block;width:100%}h2{font-size:32px;font-weight:700;line-height:1.18;letter-spacing:-.02em}
+.trio-card .shot-open{padding:0;background:none;cursor:zoom-in;display:block;width:100%}
+/* Proofaro hero accent: a spider on its web — mistakes get caught. Decorative, lightweight SVG+CSS only. */
+.hero{position:relative}
+.hero-web{position:absolute;top:-18px;right:-6px;width:168px;height:196px;pointer-events:none;z-index:0}
+.hero-web svg{display:block;width:100%;height:100%;overflow:visible}
+.hero-web .web-lines{stroke:#C8AFFA;stroke-width:1.4;fill:none;opacity:.85}
+.hero-web .web-fill{fill:#F4EEFF;opacity:.55}
+.hero-web .thread{stroke:#8354FF;stroke-width:1.6}
+.hero-web .spider-sway{transform-origin:138px 0px;animation:pfSway 5.2s ease-in-out infinite alternate}
+.hero-web .spider-bob{animation:pfBob 3.4s ease-in-out infinite alternate}
+.hero-web .caught-dot{animation:pfCaught 6s ease-in-out infinite}
+@keyframes pfSway{from{transform:rotate(-2.6deg)}to{transform:rotate(2.6deg)}}
+@keyframes pfBob{from{transform:translateY(0)}to{transform:translateY(7px)}}
+@keyframes pfCaught{0%,55%{opacity:0}68%,88%{opacity:1}100%{opacity:0}}
+@media(max-width:900px){.hero-web{width:128px;height:150px;top:-10px}}
+@media(max-width:640px){.hero-web{display:none}}
+@media(prefers-reduced-motion:reduce){.hero-web .spider-sway,.hero-web .spider-bob,.hero-web .caught-dot{animation:none}}
+h2{font-size:32px;font-weight:700;line-height:1.18;letter-spacing:-.02em}
 </style>
 </head><body><main class="page">
 <header class="header"><div class="brand"><img alt="Proofaro" src="assets/lockup.png"></div><div class="header-actions"><button aria-controls="invite-modal" aria-haspopup="dialog" class="header-invite js-invite-open" type="button">Request Invite →</button><div aria-label="Desktop platforms" class="platforms"><span>macOS</span><span>Windows</span><span>Linux</span></div></div></header>
-<section class="hero"><h1>Your meetings live on your computer.<br/><strong>Mistakes get caught before they leave it.</strong></h1><p class="hero-line">Works offline, no bot joins your call — and it watches for the words and phrases that matter to you.</p><p class="hero-price">Free during early access.</p></section>
+<section class="hero"><div class="hero-web" aria-hidden="true"><svg viewBox="0 0 168 196" role="presentation" focusable="false"><defs><linearGradient id="pfBody" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8354FF"/><stop offset="1" stop-color="#642DF4"/></linearGradient></defs><path class="web-fill" d="M168 0 L84 0 A84 84 0 0 0 168 84 Z"/><g class="web-lines"><path d="M168 0 L84 0 A84 84 0 0 0 168 84 Z"/><path d="M168 28 A56 56 0 0 0 112 0"/><path d="M168 56 A28 28 0 0 0 140 0"/><path d="M168 0 L96 60"/><path d="M168 0 L128 78"/><path d="M168 0 L84 0"/><path d="M168 0 L168 84"/></g><circle class="caught-dot" cx="118" cy="34" r="3.4" fill="#E4572E"/><g class="spider-sway"><line class="thread" x1="138" y1="0" x2="138" y2="104"/><g class="spider-bob"><g stroke="#5725D6" stroke-width="2.4" stroke-linecap="round" fill="none"><path d="M128 118 q-12 -8 -18 -2"/><path d="M128 126 q-13 -2 -19 5"/><path d="M128 134 q-11 4 -14 12"/><path d="M148 118 q12 -8 18 -2"/><path d="M148 126 q13 -2 19 5"/><path d="M148 134 q11 4 14 12"/></g><ellipse cx="138" cy="130" rx="12.5" ry="14.5" fill="url(#pfBody)"/><circle cx="138" cy="114" r="6.5" fill="#5725D6"/><rect x="133.5" y="124" width="9" height="13" rx="4.5" transform="rotate(38 138 130)" fill="#fff" opacity=".92"/><circle cx="135.6" cy="112.6" r="1.5" fill="#fff"/><circle cx="140.4" cy="112.6" r="1.5" fill="#fff"/></g></g></svg></div><h1>Your meetings live on your computer.<br/><strong>Mistakes get caught before they leave it.</strong></h1><p class="hero-line">Works offline, no bot joins your call — and it watches for the words and phrases that matter to you.</p><p class="hero-price">Free during early access.</p></section>
 
 <section class="trio-band" aria-label="The short version"><div class="trio-grid">
 <figure class="trio-card"><button type="button" class="shot-open" data-full="assets/shots/19-slide-evidence.webp" aria-label="Enlarge the slide evidence screenshot"><img src="assets/shots/19-slide-evidence.webp" alt="A shared slide kept in the meeting transcript in Proofaro" loading="lazy" decoding="async"/></button><figcaption><b>Capture</b><span>Record the call — offline transcription with speaker labels, shared slides kept as stills, and no bot in the room.</span></figcaption></figure>
