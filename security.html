@@ -47,6 +47,7 @@ a{color:#642DF4}
 <ul>
 <li>The consent log is <b>encrypted and hash-chained</b>, so entries cannot be quietly altered.</li>
 <li>Recordings, transcripts and the app's database are <b>not</b> separately encrypted by LocalNote. Protect them with your operating system's full-disk encryption — FileVault on macOS, BitLocker on Windows — the same control you would apply to any sensitive local file. We state this plainly because a security review should never have to discover it.</li>
+<li>Evidence packages you export carry a SHA-256 fingerprint of every file, so whoever receives one can check that nothing changed after export. The fingerprints are not proof that the contents are true, the package itself is <b>not</b> encrypted, and an export covers a whole meeting — protect the file like the meeting it contains.</li>
 </ul>
 <h2>Your device is the boundary</h2>
 <ul>
