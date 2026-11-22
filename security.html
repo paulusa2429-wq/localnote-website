@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Security — LocalNote</title>
-<meta name="description" content="Security for LocalNote, the private offline AI meeting app."/>
+<title>Security — Proofaro</title>
+<meta name="description" content="Security for Proofaro, the private offline AI meeting app."/>
 <link rel="icon" type="image/png" href="assets/favicon.png"/>
 <style>
 @font-face{font-family:Inter;src:url(assets/fonts/inter-latin-400.woff2) format("woff2");font-weight:400;font-display:swap}
@@ -27,7 +27,7 @@ a{color:#642DF4}
 </head>
 <body>
 <div class="wrap">
-<a class="brand" href="index.html"><img src="assets/lockup.png" alt="LocalNote"/></a>
+<a class="brand" href="index.html"><img src="assets/lockup.png" alt="Proofaro"/></a>
 <h1>Security</h1>
 <p class="updated">Last updated 19 November 2026</p>
 
@@ -35,7 +35,7 @@ a{color:#642DF4}
 <h2>Where the data goes — and doesn't</h2>
 <ul>
 <li>A meeting is recorded by the app on your computer. Transcription and all AI processing run on that computer. Transcripts, summaries, ledgers and documents are stored on that computer.</li>
-<li>LocalNote operates no server that receives customer meeting data. Nothing is uploaded for processing, because there is nothing to upload to.</li>
+<li>Proofaro operates no server that receives customer meeting data. Nothing is uploaded for processing, because there is nothing to upload to.</li>
 <li>Files leave the machine only when you export or send them.</li>
 </ul>
 <h2>Models and network behavior</h2>
@@ -46,13 +46,13 @@ a{color:#642DF4}
 <h2>Encryption, stated exactly</h2>
 <ul>
 <li>The consent log is <b>encrypted and hash-chained</b>, so entries cannot be quietly altered.</li>
-<li>Recordings, transcripts and the app's database are <b>not</b> separately encrypted by LocalNote. Protect them with your operating system's full-disk encryption — FileVault on macOS, BitLocker on Windows — the same control you would apply to any sensitive local file. We state this plainly because a security review should never have to discover it.</li>
+<li>Recordings, transcripts and the app's database are <b>not</b> separately encrypted by Proofaro. Protect them with your operating system's full-disk encryption — FileVault on macOS, BitLocker on Windows — the same control you would apply to any sensitive local file. We state this plainly because a security review should never have to discover it.</li>
 <li>Evidence packages you export carry a SHA-256 fingerprint of every file, so whoever receives one can check that nothing changed after export. The fingerprints are not proof that the contents are true, the package itself is <b>not</b> encrypted, and an export covers a whole meeting — protect the file like the meeting it contains.</li>
 </ul>
 <h2>Your device is the boundary</h2>
 <ul>
-<li>LocalNote's protection assumes your computer account is yours. Anyone who can unlock your device and open your account can open LocalNote, like any other app — on a shared computer, use separate accounts, and lock your screen when you step away.</li>
-<li>Backups copy everything on your disk, including LocalNote's data. If you back up your computer, encrypt the backup too — for example, an encrypted Time Machine backup.</li>
+<li>Proofaro's protection assumes your computer account is yours. Anyone who can unlock your device and open your account can open Proofaro, like any other app — on a shared computer, use separate accounts, and lock your screen when you step away.</li>
+<li>Backups copy everything on your disk, including Proofaro's data. If you back up your computer, encrypt the backup too — for example, an encrypted Time Machine backup.</li>
 <li>Full-disk encryption differs by system: FileVault on macOS, BitLocker or device encryption on Windows, LUKS on Linux. Turning it on is the single strongest step you can take.</li>
 </ul>
 <h2>Consent: a reminder is not consent</h2>
