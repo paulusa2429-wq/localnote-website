@@ -477,4 +477,22 @@ row.addEventListener('scroll',function(){if(timer)clearTimeout(timer);timer=setT
 sync(0);
 })();
 </script>
-<script>if(location.hash==="#invite"){var _b=document.querySelector("[data-open=\"invite\"]");if(_b)_b.click();}</script></body></html>
+<script>if(location.hash==="#invite"){var _b=document.querySelector("[data-open=\"invite\"]");if(_b)_b.click();}</script><style id="heroFix20261123">
+/* Hero composition fix (JP 2026-11-23): bubble + sticky sit in a clear band ABOVE the panel — nothing overlaps the panel title, poster content, avatar or caption pill at any width. */
+.heroArt{height:510px}
+.heroArt .app{top:150px;height:300px}
+.bubble{top:10px;left:12px}
+.heroSticky{top:6px;right:12px}
+.heroPlay .screenShot{object-position:50% 15%}
+.playLabel{top:10px;left:10px;bottom:auto;transform:none}
+.realUiNote{bottom:8px}
+@media(min-width:561px){.playDur{display:none}}
+@media(max-width:560px){
+.heroArt{height:432px;margin-bottom:0}
+.heroArt .app{top:154px;height:209px}
+.bubble{top:6px;left:8px}
+.heroSticky{top:2px;right:8px}
+.realUiNote{bottom:6px;right:10px}
+.playLabel{top:7px;left:7px;bottom:auto}
+}
+</style></body></html>
