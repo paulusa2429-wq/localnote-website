@@ -416,20 +416,26 @@ if(!saidEl||!docEl||!btn||!out)return;
 var DAYS={monday:'Monday',mon:'Monday',tuesday:'Tuesday',tue:'Tuesday',tues:'Tuesday',wednesday:'Wednesday',wed:'Wednesday',thursday:'Thursday',thu:'Thursday',thur:'Thursday',thurs:'Thursday',friday:'Friday',fri:'Friday',saturday:'Saturday',sat:'Saturday',sunday:'Sunday',sun:'Sunday'};
 var dayRe=/\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tues|thur|thurs|tue|wed|thu|fri|sat|sun)\b/i;
 var dayReG=/\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tues|thur|thurs|tue|wed|thu|fri|sat|sun)\b/gi;
-var amtRe=/\$\s?\d[\d,]*(?:\.\d{1,2})?/g;
+var NUMW={one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,eleven:11,twelve:12,thirteen:13,fourteen:14,fifteen:15,sixteen:16,seventeen:17,eighteen:18,nineteen:19,twenty:20,thirty:30,forty:40,fifty:50,sixty:60,seventy:70,eighty:80,ninety:90};
+var WRD='(?:a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|and)';
+var amtRe=new RegExp('\\$\\s?\\d[\\d,]*(?:\\.\\d+)?[kK]?|\\d[\\d,]*(?:\\.\\d+)?[kK]\\b|\\d[\\d,]*(?:\\.\\d+)?\\s*(?:dollars?|USD)\\b|\\d[\\d,]*(?:\\.\\d+)?|'+WRD+'(?:[-\\s]+'+WRD+')*(?:\\s+(?:dollars?|USD)\\b)?','gi');
+function isAmt(m){if(/^\s*\$/.test(m)||/^\s*\d/.test(m))return true;return /\b(hundred|thousand|million)\b/i.test(m)||/(dollars?|USD)\s*$/i.test(m)}
+function wordVal(t){var ws=t.toLowerCase().replace(/-/g,' ').split(/\s+/),tot=0,cur=0,seen=false;for(var i=0;i<ws.length;i++){var w=ws[i];if(w==='and'||w==='dollars'||w==='dollar'||w==='usd')continue;if(w==='a'||w==='an'){if(!cur)cur=1;continue}if(NUMW[w]!==undefined){cur+=NUMW[w];seen=true;continue}if(w==='hundred'){cur=(cur||1)*100;seen=true;continue}if(w==='thousand'){tot+=(cur||1)*1000;cur=0;seen=true;continue}if(w==='million'){tot+=(cur||1)*1000000;cur=0;seen=true;continue}}return seen?tot+cur:null}
+function amtVal(m){var t=m.trim();if(/^\$/.test(t)||/^\d/.test(t)){var k=/[kK]\s*$/.test(t)||/[kK]\s+(?:dollars?|USD)\s*$/i.test(t);var n=parseFloat(t.replace(/[$,\s]/g,'').replace(/[kK]$/,''));if(isNaN(n))return null;return k?n*1000:n}return wordVal(t)}
 var incRe=/\b(included|includes|including)\b|no extra charge|at no extra cost/i;
 var billRe=/billed separately|charged separately|not included|billed as an extra|charged extra|\bexcluded\b/i;
-function amounts(t){return (t.match(amtRe)||[]).map(function(x){return x.replace(/\s/g,'')})}
+function amounts(t){var o={vals:[],texts:[]};(t.match(amtRe)||[]).forEach(function(m){if(!isAmt(m))return;var v=amtVal(m);if(v===null||isNaN(v))return;o.vals.push(v);o.texts.push(m.trim())});return o}
 function firstDay(t){var m=t.match(dayRe);return m?{raw:m[0],canon:DAYS[m[0].toLowerCase()]}:null}
 function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
-function marked(t,cls){var e=esc(t);e=e.replace(amtRe,'<mark class="'+cls+'">$&</mark>');e=e.replace(/\b(included|billed separately|charged separately|not included)\b/gi,'<mark class="'+cls+'">$&</mark>');e=e.replace(dayReG,'<mark class="'+cls+'">$&</mark>');return e}
+function marked(t,cls){var e=esc(t);e=e.replace(amtRe,function(m){return isAmt(m)?'<mark class="'+cls+'">'+m+'</mark>':m});e=e.replace(/\b(included|billed separately|charged separately|not included)\b/gi,'<mark class="'+cls+'">$&</mark>');e=e.replace(dayReG,'<mark class="'+cls+'">$&</mark>');return e}
 function pulse(){var c=out.firstElementChild;if(!c)return;c.classList.remove('reran');void c.offsetWidth;c.classList.add('reran');setTimeout(function(){c.classList.remove('reran')},950)}
 btn.addEventListener('click',function(){
 var said=saidEl.value.trim(),doc=docEl.value.trim();
 if(!said||!doc){out.innerHTML='<div class="catchCard clean"><p class="catchHead">Add both lines to run the check.</p></div>';pulse();return}
 var rows=[];
 var sa=amounts(said),da=amounts(doc);
-if(sa.join('|')!==da.join('|'))rows.push({what:'Price',said:sa.length?sa.join(', '):'no amount',doc:da.length?da.join(', '):'no amount'});
+var amtDiff=sa.vals.length!==da.vals.length||sa.vals.some(function(v,i){return Math.abs(v-da.vals[i])>0.005});
+if(amtDiff)rows.push({what:'Price',said:sa.texts.length?sa.texts.join(', '):'no amount',doc:da.texts.length?da.texts.join(', '):'no amount'});
 var si=said.match(incRe),db=doc.match(billRe),sb=said.match(billRe),di=doc.match(incRe);
 if(si&&db)rows.push({what:'Terms',said:si[0],doc:db[0]});
 else if(sb&&di)rows.push({what:'Terms',said:sb[0],doc:di[0]});
