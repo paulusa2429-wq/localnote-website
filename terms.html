@@ -46,7 +46,7 @@ a{color:#642DF4}
 <body>
 <div class="wrap">
 <a class="brand" href="index.html"><img src="assets/lockup.png" alt="Proofaro"/></a>
-<div><a class="backlink" href="index.html">&larr; Back to Proofaro</a></div>
+<div><a class="backlink" data-back href="index.html">&larr; Back to Proofaro</a></div>
 <h1>Terms</h1>
 <p class="updated">Effective date: November 22, 2026</p>
 
@@ -78,5 +78,5 @@ a{color:#642DF4}
 <div class="foot"><a href="index.html">Home</a><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="security.html">Security</a><br/><br/>Questions: <a href="mailto:support@localnote.ai">support@localnote.ai</a><br/><section class="learnGroup" aria-labelledby="learn-heading"><h2 class="learnHeading" id="learn-heading">Learn</h2><div class="learnGrid"><a class="learnCard" href="offline-meeting-notes.html"><span class="learnIcon" aria-hidden="true">✈</span><span class="learnCopy"><span class="learnCardTitle">Offline meeting notes</span><span class="learnCardLine">Can meeting notes stay on your computer and work without internet?</span></span><span class="learnArrow" aria-hidden="true">→</span></a><a class="learnCard" href="said-vs-written.html"><span class="learnIcon" aria-hidden="true">⌕</span><span class="learnCopy"><span class="learnCardTitle">Said vs Written</span><span class="learnCardLine">What changed between what was said and what got written?</span></span><span class="learnArrow" aria-hidden="true">→</span></a><a class="learnCard" href="commitment-tracking.html"><span class="learnIcon" aria-hidden="true">◎</span><span class="learnCopy"><span class="learnCardTitle">Commitment tracking</span><span class="learnCardLine">Who promised what, and by when?</span></span><span class="learnArrow" aria-hidden="true">→</span></a><a class="learnCard" href="granola-alternative.html"><span class="learnIcon" aria-hidden="true">◈</span><span class="learnCopy"><span class="learnCardTitle">Granola alternative</span><span class="learnCardLine">Which tool fits when offline use and proof matter?</span></span><span class="learnArrow" aria-hidden="true">→</span></a></div></section></div>
 </div>
 <script data-goatcounter="https://localnote.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
-</body>
+<script>document.querySelectorAll("[data-back]").forEach(function(a){a.addEventListener("click",function(e){try{var r=document.referrer;if(window.history.length>1&&r&&new URL(r).origin===location.origin){e.preventDefault();history.back();}}catch(_){}});});</script></body>
 </html>
