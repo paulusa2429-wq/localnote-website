@@ -272,6 +272,9 @@ let lastOpener=null;document.querySelectorAll('[data-open]').forEach(n=>n.addEve
 .runsOn{font-size:12px;font-weight:600;color:#493961;background:#F4EEFF;border:1px solid #e9def7;border-radius:999px;padding:5px 12px;white-space:nowrap;letter-spacing:.01em;line-height:1.2}
 .runsOn .rsep{color:#8354FF;font-weight:700}
 @media(max-width:560px){.navCta{flex-direction:column;align-items:flex-end;gap:2px}.navCta .btn{font-size:11px;padding:10px 11px;border-radius:11px}.runsOn{font-size:9.5px;padding:3px 9px}}
+/* Mobile header breathing room (JP 2026-11-23): smaller logo, real gaps, nothing clipped */
+@media(max-width:560px){.nav{gap:14px}.brandHome{flex:0 1 auto;min-width:0}.nav .logo{width:min(40vw,164px);max-width:100%;height:auto}.navCta{gap:7px}}
+@media(max-width:380px){.runsOn{font-size:9px;padding:3px 8px}}
 .sectionHeading p.storyCaption{color:#493961;font-weight:700}
 .nativeBtn{font:inherit;color:inherit;text-align:left;cursor:pointer;width:100%}
 .nativeBtn:hover{border-color:#c9aef5}
