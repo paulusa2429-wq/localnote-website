@@ -71,7 +71,7 @@ a{color:#642DF4}
 </ul>
 <h2>Encryption, stated exactly</h2>
 <ul>
-<li>The consent log is <b>encrypted and hash-chained</b>, so entries cannot be quietly altered.</li>
+<li>The consent log is <b>hash-chained and, when your computer's keychain is available, encrypted</b>, so entries cannot be quietly altered.</li>
 <li>Recordings, transcripts and the app's database are <b>not</b> separately encrypted by Proofaro. Protect them with your operating system's full-disk encryption — FileVault on macOS, BitLocker on Windows — the same control you would apply to any sensitive local file. We state this plainly because a security review should never have to discover it.</li>
 <li>Evidence packages you export carry a SHA-256 fingerprint of every file, so whoever receives one can check that nothing changed after export. The fingerprints are not proof that the contents are true, the package itself is <b>not</b> encrypted, and an export covers a whole meeting — protect the file like the meeting it contains.</li>
 </ul>
@@ -82,7 +82,7 @@ a{color:#642DF4}
 <li>Full-disk encryption differs by system: FileVault on macOS, BitLocker or device encryption on Windows, LUKS on Linux. Turning it on is the single strongest step you can take.</li>
 </ul>
 <h2>Consent: a reminder is not consent</h2>
-<p>The app shows a consent reminder before recording and keeps a log of each recording's consent — but the reminder does not obtain consent for you. Getting consent from the people you record is your responsibility, as set out in the <a href="terms.html">Terms</a>.</p>
+<p>The app asks you to confirm — once, before your first recording — that you will make sure everyone recorded knows and agrees, shows a consent reminder as each recording starts and keeps a log of every recording and of the consent noted for it — but neither the confirmation nor the reminder obtains consent for you. Getting consent from the people you record is your responsibility, as set out in the <a href="terms.html">Terms</a>.</p>
 <h2>Connected tools, on a short leash</h2>
 <ul>
 <li>The local MCP server is <b>off by default</b>. When you switch it on, each AI client is approved individually, limited to the meetings you select, and every access is written to an audit log.</li>
