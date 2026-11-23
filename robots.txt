@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://localnote.ai/sitemap.xml
+Sitemap: https://proofaro.ai/sitemap.xml
