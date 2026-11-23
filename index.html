@@ -411,7 +411,7 @@ mark.mkDoc{background:#ffdcd4}
 </style>
 <script>
 /* "Catch it yourself" playground: a small, honest taste of the Said vs Written check.
-   Deterministic comparisons only — amounts, included-vs-billed phrasing, weekday shifts.
+   Deterministic comparisons only — amounts, counts, included-vs-billed phrasing, weekday shifts.
    Runs entirely in the browser; nothing is sent anywhere. */
 (function(){
 var saidEl=document.getElementById('playSaid'),docEl=document.getElementById('playDoc'),btn=document.getElementById('playCheck'),out=document.getElementById('playResult');
@@ -422,23 +422,27 @@ var dayReG=/\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tues
 var NUMW={one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,eleven:11,twelve:12,thirteen:13,fourteen:14,fifteen:15,sixteen:16,seventeen:17,eighteen:18,nineteen:19,twenty:20,thirty:30,forty:40,fifty:50,sixty:60,seventy:70,eighty:80,ninety:90};
 var WRD='(?:a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|and)';
 var amtRe=new RegExp('\\$\\s?\\d[\\d,]*(?:\\.\\d+)?[kK]?|\\d[\\d,]*(?:\\.\\d+)?[kK]\\b|\\d[\\d,]*(?:\\.\\d+)?\\s*(?:dollars?|USD)\\b|\\d[\\d,]*(?:\\.\\d+)?|'+WRD+'(?:[-\\s]+'+WRD+')*(?:\\s+(?:dollars?|USD)\\b)?','gi');
-function isAmt(m){if(/^\s*\$/.test(m)||/^\s*\d/.test(m))return true;return /\b(hundred|thousand|million)\b/i.test(m)||/(dollars?|USD)\s*$/i.test(m)}
+function cleanTok(s){return s.trim().replace(/[,.;:]+$/,'')}
+var COUNTSTOP={and:1,or:1,but:1,by:1,to:1,for:1,in:1,on:1,at:1,of:1,the:1,is:1,was:1,are:1,were:1,be:1,been:1,per:1,each:1,total:1,exactly:1,only:1,just:1,about:1,around:1,approx:1,approximately:1,plus:1,minus:1,extra:1,more:1,less:1,than:1,then:1,with:1,without:1,from:1,after:1,before:1,during:1,will:1,would:1,can:1,could:1,should:1,has:1,have:1,had:1,not:1,all:1,any:1,some:1,said:1,written:1};
+function normNoun(w){var n=w.toLowerCase();if(n.length>3&&/s$/.test(n)&&!/ss$|us$/.test(n))n=n.slice(0,-1);return n}
 function wordVal(t){var ws=t.toLowerCase().replace(/-/g,' ').split(/\s+/),tot=0,cur=0,seen=false;for(var i=0;i<ws.length;i++){var w=ws[i];if(w==='and'||w==='dollars'||w==='dollar'||w==='usd')continue;if(w==='a'||w==='an'){if(!cur)cur=1;continue}if(NUMW[w]!==undefined){cur+=NUMW[w];seen=true;continue}if(w==='hundred'){cur=(cur||1)*100;seen=true;continue}if(w==='thousand'){tot+=(cur||1)*1000;cur=0;seen=true;continue}if(w==='million'){tot+=(cur||1)*1000000;cur=0;seen=true;continue}}return seen?tot+cur:null}
 function amtVal(m){var t=m.trim();if(/^\$/.test(t)||/^\d/.test(t)){var k=/[kK]\s*$/.test(t)||/[kK]\s+(?:dollars?|USD)\s*$/i.test(t);var n=parseFloat(t.replace(/[$,\s]/g,'').replace(/[kK]$/,''));if(isNaN(n))return null;return k?n*1000:n}return wordVal(t)}
 var incRe=/\b(included|includes|including)\b|no extra charge|at no extra cost/i;
 var billRe=/billed separately|charged separately|not included|billed as an extra|charged extra|\bexcluded\b/i;
-function amounts(t){var o={vals:[],texts:[]};(t.match(amtRe)||[]).forEach(function(m){if(!isAmt(m))return;var v=amtVal(m);if(v===null||isNaN(v))return;o.vals.push(v);o.texts.push(m.trim())});return o}
+function mentions(t){var out={money:[],counts:[]};var re=new RegExp(amtRe.source,'gi'),m;while((m=re.exec(t))!==null){var raw=m[0];if(!raw){re.lastIndex++;continue}var v=amtVal(raw);if(v===null||isNaN(v))continue;if(/^\s*\$/.test(raw)||/(dollars?|USD)\s*$/i.test(raw)||/[kK]\s*$/.test(raw)){out.money.push({val:v,text:cleanTok(raw)});continue}var words=(t.slice(re.lastIndex).match(/[A-Za-z]+/g)||[]);var w0=words[0]?words[0].toLowerCase():null;if(w0==='dollars'||w0==='usd'){out.money.push({val:v,text:cleanTok(raw)});continue}var candW=null;if(w0==='of'){candW=(words[1]&&words[1].toLowerCase()==='the')?words[2]:words[1]}else if(w0){candW=words[0]}if(candW&&candW.length>=3&&!COUNTSTOP[candW.toLowerCase()]&&!DAYS[candW.toLowerCase()]){out.counts.push({val:v,text:cleanTok(raw)+' '+candW,noun:normNoun(candW)});continue}out.money.push({val:v,text:cleanTok(raw)})}return out}
+function countRows(sm,dm){var keys={},order=[];function add(side,c){var k=c.noun;if(!keys[k]){keys[k]={s:[],d:[]};order.push(k)}keys[k][side].push(c)}sm.counts.forEach(function(c){add('s',c)});dm.counts.forEach(function(c){add('d',c)});var rows=[];order.forEach(function(k){var g=keys[k];var diff=g.s.length!==g.d.length||g.s.some(function(c,i){return Math.abs(c.val-g.d[i].val)>0.005});if(diff)rows.push({what:'Count',said:g.s.length?g.s.map(function(c){return c.text}).join(', '):'not mentioned',doc:g.d.length?g.d.map(function(c){return c.text}).join(', '):'not mentioned'})});return rows}
 function firstDay(t){var m=t.match(dayRe);return m?{raw:m[0],canon:DAYS[m[0].toLowerCase()]}:null}
 function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
-function marked(t,cls){var e=esc(t);e=e.replace(amtRe,function(m){return isAmt(m)?'<mark class="'+cls+'">'+m+'</mark>':m});e=e.replace(/\b(included|billed separately|charged separately|not included)\b/gi,'<mark class="'+cls+'">$&</mark>');e=e.replace(dayReG,'<mark class="'+cls+'">$&</mark>');return e}
+function marked(t,cls){var e=esc(t);e=e.replace(amtRe,function(m){if(amtVal(m)===null)return m;var tr=(m.match(/[,.;:]+$/)||[''])[0];var core=tr?m.slice(0,m.length-tr.length):m;return '<mark class="'+cls+'">'+core+'</mark>'+tr});e=e.replace(/\b(included|billed separately|charged separately|not included)\b/gi,'<mark class="'+cls+'">$&</mark>');e=e.replace(dayReG,'<mark class="'+cls+'">$&</mark>');return e}
 function pulse(){var c=out.firstElementChild;if(!c)return;c.classList.remove('reran');void c.offsetWidth;c.classList.add('reran');setTimeout(function(){c.classList.remove('reran')},950)}
 btn.addEventListener('click',function(){
 var said=saidEl.value.trim(),doc=docEl.value.trim();
 if(!said||!doc){out.innerHTML='<div class="catchCard clean"><p class="catchHead">Add both lines to run the check.</p></div>';pulse();return}
 var rows=[];
-var sa=amounts(said),da=amounts(doc);
-var amtDiff=sa.vals.length!==da.vals.length||sa.vals.some(function(v,i){return Math.abs(v-da.vals[i])>0.005});
-if(amtDiff)rows.push({what:'Price',said:sa.texts.length?sa.texts.join(', '):'no amount',doc:da.texts.length?da.texts.join(', '):'no amount'});
+var sm=mentions(said),dm=mentions(doc);
+var amtDiff=sm.money.length!==dm.money.length||sm.money.some(function(c,i){return Math.abs(c.val-dm.money[i].val)>0.005});
+if(amtDiff)rows.push({what:'Price',said:sm.money.length?sm.money.map(function(c){return c.text}).join(', '):'no amount',doc:dm.money.length?dm.money.map(function(c){return c.text}).join(', '):'no amount'});
+rows=rows.concat(countRows(sm,dm));
 var si=said.match(incRe),db=doc.match(billRe),sb=said.match(billRe),di=doc.match(incRe);
 if(si&&db)rows.push({what:'Terms',said:si[0],doc:db[0]});
 else if(sb&&di)rows.push({what:'Terms',said:sb[0],doc:di[0]});
