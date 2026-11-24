@@ -9,8 +9,8 @@
   'use strict';
 
   /* ---------------- vocabulary ---------------- */
-  var NUMW = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90 };
-  var NUMWORD = '(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|and)';
+  var NUMW = { zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90 };
+  var NUMWORD = '(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion|dozen|point|zero|and)';
   var MONTHS = { january: 1, jan: 1, february: 2, feb: 2, march: 3, mar: 3, april: 4, apr: 4, may: 5, june: 6, jun: 6, july: 7, jul: 7, august: 8, aug: 8, september: 9, sep: 9, sept: 9, october: 10, oct: 10, november: 11, nov: 11, december: 12, dec: 12 };
   var MONTH_RE = '(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)';
   var WEEKDAYS = { sunday: 0, sun: 0, monday: 1, mon: 1, tuesday: 2, tue: 2, tues: 2, wednesday: 3, wed: 3, thursday: 4, thu: 4, thur: 4, thurs: 4, friday: 5, fri: 5, saturday: 6, sat: 6 };
@@ -24,16 +24,25 @@
   /* ---------------- helpers ---------------- */
   function esc(s) { return s; } // engine works on raw text; the page escapes for HTML
   function wordVal(t) {
-    var ws = t.toLowerCase().replace(/-/g, ' ').split(/\s+/), tot = 0, cur = 0, seen = false;
+    var ws = t.toLowerCase().replace(/-/g, ' ').split(/\s+/), tot = 0, cur = 0, seen = false, frac = -1, fscale = 1;
+    function flushFrac() { if (frac >= 0) { cur += frac; frac = -1; fscale = 1; } }
     for (var i = 0; i < ws.length; i++) {
       var w = ws[i];
       if (w === 'and' || w === 'dollars' || w === 'dollar' || w === 'usd') continue;
-      if (w === 'a' || w === 'an') { if (!cur) cur = 1; continue; }
+      if (w === 'a' || w === 'an') { if (!cur && frac < 0) cur = 1; continue; }
+      if (w === 'point') { if (frac < 0 && seen) { frac = 0; fscale = 1; } continue; }
+      if (frac >= 0) {
+        if (NUMW[w] !== undefined && NUMW[w] <= 9) { fscale *= 10; frac += NUMW[w] / fscale; seen = true; continue; }
+        flushFrac();
+      }
       if (NUMW[w] !== undefined) { cur += NUMW[w]; seen = true; continue; }
       if (w === 'hundred') { cur = (cur || 1) * 100; seen = true; continue; }
+      if (w === 'dozen') { cur = (cur || 1) * 12; seen = true; continue; }
       if (w === 'thousand') { tot += (cur || 1) * 1000; cur = 0; seen = true; continue; }
       if (w === 'million') { tot += (cur || 1) * 1000000; cur = 0; seen = true; continue; }
+      if (w === 'billion') { tot += (cur || 1) * 1000000000; cur = 0; seen = true; continue; }
     }
+    flushFrac();
     return seen ? tot + cur : null;
   }
   function stem(w) {
@@ -72,6 +81,7 @@
     return out;
   }
   var TS_RE = /^\s*\[?(\d{1,2}:\d{2}(?::\d{2})?)\]?\s*(?:[-–—]\s*)?/;
+  var NAME_TIME_RE = /^([A-Z][A-Za-z.'-]+(?: [A-Z][A-Za-z.'-]+){0,2})\s+(\d{1,2}:\d{2}(?::\d{2})?)\s*(?:[-–—:]\s*)?/;
   var SPK_RE = /^([A-Z][A-Za-z.'-]+(?: [A-Z][A-Za-z.'-]+){0,2})\s*:\s+/;
   function parseLines(text) {
     var lines = String(text || '').split(/\r?\n/), out = [];
@@ -80,6 +90,7 @@
       if (!line) continue;
       var ts = null, speaker = null, m;
       if ((m = line.match(TS_RE))) { ts = m[1]; line = line.slice(m[0].length); }
+      if (!ts && (m = line.match(NAME_TIME_RE))) { speaker = m[1]; ts = m[2]; line = line.slice(m[0].length); }
       if ((m = line.match(SPK_RE)) && !/^\d/.test(m[1])) { speaker = m[1]; line = line.slice(m[0].length); }
       // "Speaker 12:04:" style: speaker label that itself carries a time
       if (!ts && speaker && /\d/.test(speaker)) { speaker = null; }
@@ -113,7 +124,21 @@
     while ((m = re8.exec(s))) push(m[0], m.index, { day: parseInt(m[1], 10) });
     var re9 = new RegExp('\\b(' + MONTH_RE + ')\\b', 'gi');
     while ((m = re9.exec(s))) { if (!spans.some(function (sp) { return m.index >= sp[0] && m.index < sp[1]; })) push(m[0], m.index, { month: MONTHS[m[1].toLowerCase()] }); }
-    return { facts: facts, spans: spans };
+    // merge neighbouring fragments that describe ONE date (weekday + month/day),
+    // never merging two facts that disagree on a shared field
+    facts.sort(function (a, b) { return a.span[0] - b.span[0]; });
+    var DFIELDS = ['month', 'day', 'weekday', 'week', 'part'];
+    var mergedD = [];
+    facts.forEach(function (f) {
+      var last = mergedD[mergedD.length - 1];
+      var clash = last && DFIELDS.some(function (k) { return last[k] != null && f[k] != null && last[k] !== f[k]; });
+      if (last && !clash && f.span[0] - last.span[1] <= 24) {
+        DFIELDS.forEach(function (k) { if (last[k] == null && f[k] != null) last[k] = f[k]; });
+        last.span = [last.span[0], f.span[1]];
+        last.raw = s.slice(last.span[0], last.span[1]);
+      } else mergedD.push(f);
+    });
+    return { facts: mergedD, spans: mergedD.map(function (f) { return f.span; }) };
   }
   function dateConflict(a, b) {
     if (a.month && b.month && a.month !== b.month) return true;
@@ -135,6 +160,16 @@
     d = d; // noop
     return false;
   }
+  function dateConsistent(m, d) {
+    // a draft date is confirmed when every field the DRAFT asserts is present
+    // and equal in the meeting fact (meeting may know more, never less)
+    var fields = ['month', 'day', 'weekday', 'week', 'part'], any = false;
+    for (var i = 0; i < fields.length; i++) {
+      var k = fields[i];
+      if (d[k] != null) { any = true; if (m[k] !== d[k]) return false; }
+    }
+    return any;
+  }
   function sameDate(a, b) {
     return (a.month || 0) === (b.month || 0) && (a.day || 0) === (b.day || 0) && (a.weekday == null ? null : a.weekday) === (b.weekday == null ? null : b.weekday) && (a.week || 0) === (b.week || 0) && (a.part || '') === (b.part || '');
   }
@@ -142,7 +177,7 @@
   /* ---------------- fact extraction ---------------- */
   var MONEY_CTX = /\b(price|priced|cost|costs|fee|fees|budget|quote|quoted|total|charge|charged|charges|pay|paid|payment|invoice|invoiced|amount|sum|worth|billing|billed|bill|per month|per year|monthly|annually|yearly|salary|rate|retainer|deposit|discount)\b/i;
   function extractFacts(s) {
-    var facts = { money: [], percent: [], counts: [], dates: [], names: [], actors: [], promise: false, included: null, billed: null };
+    var facts = { money: [], percent: [], counts: [], dates: [], names: [], actors: [], windows: [], promise: false, included: null, billed: null };
     var masked = s.split('');
     function mask(a, b) { for (var i = a; i < b; i++) masked[i] = ' '; }
     // dates first (mask their spans so day numbers don't become counts)
@@ -153,9 +188,47 @@
     var tm = s.matchAll(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g), t1;
     for (t1 of tm) mask(t1.index, t1.index + t1[0].length);
     var work = masked.join('');
+    // support windows / explicit limits ("nine to five", "24/7") are checkable facts
+    var re24 = /\b24\s*\/\s*7\b/g;
+    while ((m = re24.exec(work))) { facts.windows.push({ key: '24/7', raw: s.slice(m.index, m.index + m[0].length), span: [m.index, m.index + m[0].length] }); mask(m.index, m.index + m[0].length); }
+    work = masked.join('');
+    if (/\b(support|helpdesk|hours|coverage|open|available|assistance)\b/i.test(s)) {
+      var HOURW = '(?:\\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)';
+      var reWin = new RegExp('\\b(' + HOURW + ')\\s*(am|pm)?\\s*(?:to|-|–|—)\\s*(' + HOURW + ')\\s*(am|pm)?\\b', 'gi');
+      while ((m = reWin.exec(work))) {
+        var hv = function (tok, ap) { var v = /^\d+$/.test(tok) ? parseInt(tok, 10) : NUMW[tok.toLowerCase()]; if (v === undefined || v > 24) return null; if (ap) { ap = ap.toLowerCase(); if (ap === 'pm' && v < 12) v += 12; if (ap === 'am' && v === 12) v = 0; } return v; };
+        var h1 = hv(m[1], m[2]), h2 = hv(m[3], m[4]);
+        if (h1 === null || h2 === null) continue;
+        if (!m[4] && h2 <= h1 && h2 < 12) h2 += 12;
+        var wRaw = s.slice(m.index, m.index + m[0].length), wTrim = wRaw.replace(/\s+$/, '');
+        facts.windows.push({ key: h1 + '-' + h2, raw: wTrim, span: [m.index, m.index + wTrim.length] });
+        mask(m.index, m.index + m[0].length);
+      }
+      work = masked.join('');
+    }
+    // word quantities: half a dozen = 6, a dozen = 12, a couple = 2 ("a few" stays vague: no fact)
+    function wordCountFact(val, mm, includeOf) {
+      var end = mm.index + mm[0].length;
+      if (includeOf) { var ofM = work.slice(end).match(/^\s+of\b/); if (ofM) end += ofM[0].length; }
+      var aftW = work.slice(end, end + 30);
+      var nmW = aftW.match(/^\s+(?:of\s+the\s+|of\s+)?([A-Za-z]+)/);
+      if (nmW && nmW[1].length >= 3 && !STOP[nmW[1].toLowerCase()] && !COUNT_ADJ[nmW[1].toLowerCase()]) {
+        facts.counts.push({ value: val, raw: s.slice(mm.index, end), span: [mm.index, end], noun: normNoun(nmW[1]) });
+      }
+      mask(mm.index, mm.index + mm[0].length);
+    }
+    var reHD = /\bhalf a dozen\b|\ba half dozen\b/gi;
+    while ((m = reHD.exec(work))) wordCountFact(6, m, false);
+    work = masked.join('');
+    var reDZ = /\ba dozen\b/gi;
+    while ((m = reDZ.exec(work))) wordCountFact(12, m, false);
+    work = masked.join('');
+    var reCP = /\ba couple\b/gi;
+    while ((m = reCP.exec(work))) wordCountFact(2, m, true);
+    work = masked.join('');
     var m;
     // money: $ amounts
-    var reD = /\$\s?\d[\d,]*(?:\.\d+)?[kK]?/g;
+    var reD = /\$\s?\d[\d,]*(?:\.\d+)?(?:\s?(?:[kKmM]|bn)\b|\s+(?:thousand|million|billion)\b)?/g;
     while ((m = reD.exec(work))) { var v = amtValOf(m[0]); if (v !== null) { facts.money.push({ value: v, raw: s.slice(m.index, m.index + m[0].length), span: [m.index, m.index + m[0].length] }); mask(m.index, m.index + m[0].length); } }
     work = masked.join('');
     // money: digits + dollars/USD, digits with k suffix
@@ -169,13 +242,30 @@
     var reP = /\b\d[\d,]*(?:\.\d+)?\s*(?:%|percent\b|per cent\b)/gi;
     while ((m = reP.exec(work))) { facts.percent.push({ value: parseFloat(m[0].replace(/[^0-9.]/g, '')), raw: s.slice(m.index, m.index + m[0].length), span: [m.index, m.index + m[0].length] }); mask(m.index, m.index + m[0].length); }
     work = masked.join('');
+    // digits with a magnitude word: "1.5 million", "2 billion" (+ symbol forms "1.5M", "2bn")
+    var reDM = /\b\d[\d,]*(?:\.\d+)?\s*(thousand|million|billion)\b/gi;
+    while ((m = reDM.exec(work))) {
+      var dvv = amtValOf(m[0]);
+      if (dvv === null) continue;
+      var dAft = work.slice(m.index + m[0].length, m.index + m[0].length + 30);
+      var dNounM = dAft.match(/^\s+(?:of\s+the\s+|of\s+)?([A-Za-z]+)/);
+      if (dNounM && dNounM[1].length >= 3 && !STOP[dNounM[1].toLowerCase()] && !COUNT_ADJ[dNounM[1].toLowerCase()]) {
+        facts.counts.push({ value: dvv, raw: s.slice(m.index, m.index + m[0].length), span: [m.index, m.index + m[0].length], noun: normNoun(dNounM[1]) });
+        mask(m.index, m.index + m[0].length); work = masked.join(''); continue;
+      }
+      if (MONEY_CTX.test(s)) { facts.money.push({ value: dvv, raw: s.slice(m.index, m.index + m[0].length), span: [m.index, m.index + m[0].length] }); mask(m.index, m.index + m[0].length); work = masked.join(''); }
+    }
+    var reDM2 = /\b\d[\d,]*(?:\.\d+)?\s?(?:[Mm]\b|bn\b)/g;
+    while ((m = reDM2.exec(work))) { var dv2 = amtValOf(m[0]); if (dv2 !== null && MONEY_CTX.test(s)) { facts.money.push({ value: dv2, raw: s.slice(m.index, m.index + m[0].length), span: [m.index, m.index + m[0].length] }); mask(m.index, m.index + m[0].length); work = masked.join(''); } }
     // word-number expressions (money w/ dollars, percent, counts)
-    var reW = new RegExp('\\b' + NUMWORD + '(?:[-\\s]+' + NUMWORD + ')*', 'gi');
+    var reW = new RegExp('\\b' + NUMWORD + '(?![A-Za-z])(?:[-\\s]+' + NUMWORD + '(?![A-Za-z]))*', 'gi');
     while ((m = reW.exec(work))) {
       var rawW = m[0];
-      if (!/\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million)\b/i.test(rawW)) continue;
+      if (!/\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion|dozen|point)\b/i.test(rawW)) continue;
       var val = wordVal(rawW);
       if (val === null) continue;
+      if (!/\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)\b/i.test(rawW)
+        && !/(?:^|\s)(a|an)\s$/i.test(work.slice(0, m.index))) continue; // bare fragment: "thousand" with no number attached
       var after = work.slice(m.index + rawW.length, m.index + rawW.length + 30);
       var afterM = after.match(/^\s*(dollars?|USD|%|percent|per cent)\b/i);
       if (afterM) {
@@ -259,18 +349,44 @@
   function amtValOf(t) {
     t = t.trim();
     if (/^\$/.test(t) || /^\d/.test(t)) {
-      var k = /[kK]\s*$/.test(t) || /[kK]\s+(?:dollars?|USD)\s*$/i.test(t);
-      var n = parseFloat(t.replace(/[$,\s]/g, '').replace(/[kK]$/, ''));
+      var mult = 1;
+      var wm = t.match(/(thousand|million|billion)\s*$/i);
+      if (wm) mult = wm[1].toLowerCase() === 'thousand' ? 1e3 : (wm[1].toLowerCase() === 'million' ? 1e6 : 1e9);
+      else if (/bn\s*$/i.test(t)) mult = 1e9;
+      else if (/[kK]\s*$/.test(t)) mult = 1e3;
+      else if (/[mM]\s*$/.test(t)) mult = 1e6;
+      var n = parseFloat(t.replace(/[$,\s]/g, '').replace(/(thousand|million|billion|bn|[kKmM])$/i, ''));
       if (isNaN(n)) return null;
-      return k ? n * 1000 : n;
+      return n * mult;
     }
     return wordVal(t);
   }
 
   /* ---------------- matching + comparison ---------------- */
+  var ROLE_STOP = { speaker: 1, facilitator: 1, client: 1, vendor: 1, buyer: 1, consultant: 1, manager: 1, lead: 1, coordinator: 1, sponsor: 1, analyst: 1, team: 1, moderator: 1, interviewer: 1, host: 1, presenter: 1, 'events lead': 1, 'account manager': 1, 'ops manager': 1, 'office manager': 1 };
+  function nameParts(n) { return n.toLowerCase().replace(/[^a-z\s]/g, ' ').split(/\s+/).filter(Boolean); }
+  function firstNameMatch(x, y) {
+    return x === y || (x.length === 1 && y.charAt(0) === x) || (y.length === 1 && x.charAt(0) === y)
+      || (x.length >= 3 && y.indexOf(x) === 0) || (y.length >= 3 && x.indexOf(y) === 0);
+  }
+  function samePerson(a, b) {
+    var pa = nameParts(a), pb = nameParts(b);
+    if (!pa.length || !pb.length) return false;
+    if (pa.join(' ') === pb.join(' ')) return true;
+    if (pa.length > 1 && pb.length > 1) return pa[pa.length - 1] === pb[pb.length - 1] && firstNameMatch(pa[0], pb[0]);
+    if (pa.length === 1 && pb.length === 1) return firstNameMatch(pa[0], pb[0]);
+    var single = pa.length === 1 ? pa[0] : pb[0], other = pa.length === 1 ? pb : pa;
+    return firstNameMatch(single, other[0]) || single === other[other.length - 1];
+  }
   function buildSentences(text) {
     return parseLines(text).map(function (s, i) {
-      return { text: s.text, timestamp: s.timestamp, speaker: s.speaker, index: i, facts: extractFacts(s.text), toks: tokens(s.text) };
+      var facts = extractFacts(s.text);
+      // a speaker label + first-person commitment IS an owner fact ("Raj: I will send ...")
+      if (s.speaker && !ROLE_STOP[s.speaker.toLowerCase()] && !/^speaker\b/i.test(s.speaker)
+        && /^\s*(?:and\s+|so\s+)?(i\s+(?:will|’ll|'ll)|i'?m\s+going\s+to)\b/i.test(s.text)) {
+        facts.actors.push({ name: s.speaker, span: null, implied: true });
+      }
+      return { text: s.text, timestamp: s.timestamp, speaker: s.speaker, index: i, facts: facts, toks: tokens(s.text) };
     });
   }
   function check(transcriptText, draftText, opts) {
@@ -314,6 +430,8 @@
 
     var flags = [];
     function addFlag(f) {
+      var FRAG = /^\s*(hundred|thousand|million|billion|dozen)\s*$/i;
+      if ((f.draftFactText && FRAG.test(f.draftFactText)) || (f.meetingFactText && FRAG.test(f.meetingFactText))) return;
       // dedupe: same draft sentence + type + draft fact text
       for (var i = 0; i < flags.length; i++) {
         if (flags[i].draftIndex === f.draftIndex && flags[i].type === f.type && flags[i].draftFactText === f.draftFactText) return;
@@ -408,6 +526,16 @@
           addFlag({ type: 'Quantity', beta: false, confidence: confOf(cands[0].sc), draftIndex: d.index, draftSentence: d.text, draftSpan: cf.span, draftFactText: cf.raw + ' ' + cf.noun, meetingSentence: cands[0].s.text, meetingSpan: cm2.span, meetingFactText: cm2.raw + ' ' + cm2.noun, timestamp: cands[0].s.timestamp, fix: fixFor(d.text, cf.span, cm2.raw) });
         });
       }
+      // --- support windows / explicit limits ---
+      if (df.windows.length) {
+        df.windows.forEach(function (wf) {
+          var cands = candsFor('windows', wf.span);
+          if (!cands.length || cands[0].sc < 0.12) return;
+          var wm = cands[0].s.facts.windows[0];
+          if (wm.key === wf.key) return;
+          addFlag({ type: 'Promise', beta: true, confidence: confOf(cands[0].sc), draftIndex: d.index, draftSentence: d.text, draftSpan: wf.span, draftFactText: wf.raw, meetingSentence: cands[0].s.text, meetingSpan: wm.span, meetingFactText: wm.raw, timestamp: cands[0].s.timestamp, fix: fixFor(d.text, wf.span, wm.raw) });
+        });
+      }
       // --- dates (per-fact: walk candidates until one confirms or conflicts) ---
       if (df.dates.length) {
         df.dates.forEach(function (dtf) {
@@ -415,7 +543,7 @@
           for (var ci = 0; ci < cands.length; ci++) {
             if (cands[ci].sc < 0.12) break;
             var darr = cands[ci].s.facts.dates;
-            if (darr.some(function (x) { return sameDate(x, dtf); })) return;
+            if (darr.some(function (x) { return sameDate(x, dtf) || dateConsistent(x, dtf); })) return;
             var clash = null;
             for (var i = 0; i < darr.length; i++) { if (dateConflict(dtf, darr[i])) { clash = darr[i]; break; } }
             if (clash) {
@@ -430,8 +558,14 @@
         df.actors.forEach(function (af) {
           var cands = candsFor('actors', af.span);
           if (!cands.length || cands[0].sc < 0.12) return;
-          var hit = cands[0].s.facts.actors.some(function (x) { return x.name.toLowerCase() === af.name.toLowerCase(); });
+          var hit = cands[0].s.facts.actors.some(function (x) { return samePerson(x.name, af.name); });
           if (hit) return;
+          // only accuse when the meeting candidate is about the same action:
+          // the verb after the draft actor's "will" must appear in it (or the match is very strong)
+          var vm = af.span ? d.text.slice(af.span[1]).match(/^\s*(?:will|’ll|'ll|is going to|is to)\s+([A-Za-z]+)/) : null;
+          var verbShared = vm && cands[0].s.toks[stem(vm[1].toLowerCase())];
+          var assignForm = af.span && /(?:assigned to|handed to|owned by|owner:)\s*$/i.test(d.text.slice(0, af.span[0]));
+          if (!assignForm && !verbShared && cands[0].sc < 0.45) return;
           var am = cands[0].s.facts.actors[0];
           addFlag({ type: 'Name', beta: false, confidence: confOf(cands[0].sc), draftIndex: d.index, draftSentence: d.text, draftSpan: af.span, draftFactText: af.name, meetingSentence: cands[0].s.text, meetingSpan: am.span, meetingFactText: am.name, timestamp: cands[0].s.timestamp, fix: fixFor(d.text, af.span, am.name) });
         });
@@ -471,9 +605,19 @@
       if (!carried) ms.facts.dates.forEach(function (f) { var k = (f.month || '') + '-' + (f.day || '') + '-' + (f.weekday == null ? '' : f.weekday) + '-' + (f.week || ''); if (!draftDateKeys[k]) carried = { kind: 'date', f: f }; });
       if (!carried) return;
       // is any draft sentence about this meeting sentence?
-      var bestD = 0;
-      draft.forEach(function (d) { var sc = score(d, ms); if (sc > bestD) bestD = sc; });
-      if (bestD >= 0.3) return;
+      var bestD = 0, bestDS = null;
+      draft.forEach(function (d) { var sc = score(d, ms); if (sc > bestD) { bestD = sc; bestDS = d; } });
+      if (bestD >= 0.3) {
+        // topical overlap with the sentence is not coverage of THIS commitment:
+        // the draft must also touch the carried fact's own clause
+        var clauses = ms.text.split(/,?\s+and\s+(?=(?:I|we|you|he|she|they)\b)|;\s*/i);
+        var clause = clauses[0], pos = 0;
+        for (var ci2 = 0; ci2 < clauses.length; ci2++) { var nx = pos + clauses[ci2].length; if (carried.f.span[0] >= pos && carried.f.span[0] <= nx) { clause = clauses[ci2]; break; } pos = nx + 1; }
+        var lt = {}, wm3, wre3 = /[A-Za-z']+/g;
+        while ((wm3 = wre3.exec(clause))) { var w4 = wm3[0].toLowerCase(); if (!STOP[w4] && NUMW[w4] === undefined && w4 !== 'hundred' && w4 !== 'thousand' && w4 !== 'million') lt[stem(w4)] = 1; }
+        var ltKeys = Object.keys(lt);
+        if (!ltKeys.length || (bestDS && ltKeys.some(function (w) { return bestDS.toks[w]; }))) return;
+      }
       // already covered by a flag pointing at this meeting sentence?
       var covered = flags.some(function (f) { return f.meetingSentence === ms.text; });
       // or by a flag about the same carried value (the topic was addressed, just changed)?
