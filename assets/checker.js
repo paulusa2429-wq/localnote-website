@@ -128,6 +128,12 @@
     }
     var wordM = d.match(/\b(dollars?|euros?|pounds?|usd|eur|gbp)\b/i);
     if (wordM) {
+      if (/^(?:usd|eur|gbp)$/i.test(wordM[0])) {
+        // the draft used an ISO code: answer in code form, in the same position
+        var code = mFact.currency || wordM[0].toUpperCase();
+        var gv = fmtGrouped(v, /\.\d/.test(d) ? 2 : 0);
+        return d.toLowerCase().indexOf(wordM[0].toLowerCase()) === 0 ? code + ' ' + gv : gv + ' ' + code;
+      }
       var w2 = mFact.currency ? CUR_WORD[mFact.currency] : (/eur/i.test(wordM[0]) ? 'euros' : (/pound|gbp/i.test(wordM[0]) ? 'pounds' : 'dollars'));
       if (v === 1) w2 = w2.replace(/s$/, '');
       return fmtGrouped(v, /\.\d/.test(d) ? 2 : 0) + ' ' + w2;
@@ -165,7 +171,7 @@
   /* ---------------- fee nouns (for zero / absence facts) ---------------- */
   function feeKey(phrase) {
     var words = String(phrase || '').toLowerCase().replace(/[^a-z\s-]/g, ' ').split(/\s+/).filter(Boolean);
-    while (words.length && (words[0] === 'the' || words[0] === 'a' || words[0] === 'an' || COUNT_ADJ[words[0]])) words.shift();
+    while (words.length && (words[0] === 'the' || words[0] === 'a' || words[0] === 'an' || words[0] === 'as' || COUNT_ADJ[words[0]])) words.shift();
     while (words.length && STOP[words[words.length - 1]]) words.pop();
     if (!words.length) return null;
     var last = normNoun(words[words.length - 1]);
@@ -212,19 +218,28 @@
   var DIR_VERBS = { send: 1, deliver: 1, provide: 1, ship: 1, return: 1, pay: 1 };
   function sideOf(p) { p = p.toLowerCase(); if (p === 'you') return 'other'; if (p === 'we' || p === 'i' || p === 'us' || p === 'me') return 'self'; return 'third'; }
   function dirPattern(text) {
-    var m = text.match(/^\s*(you|we|i|they|he|she)\s+(?:will\s+|’ll\s+|'ll\s+)?([A-Za-z]+)\s+(?:to\s+)?(you|us|me|them|him|her)\b/i);
-    if (!m) return null;
-    if (!DIR_VERBS[stem(m[2].toLowerCase())]) return null;
-    var low = m[0].toLowerCase();
-    var aOff = low.indexOf(m[1].toLowerCase()), rOff = low.lastIndexOf(m[3].toLowerCase());
-    return { actor: m[1], verb: m[2].toLowerCase(), recip: m[3], actorSide: sideOf(m[1]), recipSide: sideOf(m[3]), actorSpan: [aOff, aOff + m[1].length], recipSpan: [rOff, rOff + m[3].length] };
+    // the clause may sit anywhere in the sentence ("The email says: we send you ..."),
+    // not only at its start: scan for the first pronoun + listed-verb + pronoun clause
+    var re = /\b(you|we|i|they|he|she)\s+(?:will\s+|’ll\s+|'ll\s+)?([A-Za-z]+)\s+(?:to\s+)?(you|us|me|them|him|her)\b/gi;
+    var m;
+    while ((m = re.exec(text))) {
+      if (!DIR_VERBS[stem(m[2].toLowerCase())]) continue;
+      var aOff = m.index;
+      var rOff = m.index + m[0].toLowerCase().lastIndexOf(m[3].toLowerCase());
+      return { actor: m[1], verb: m[2].toLowerCase(), recip: m[3], actorSide: sideOf(m[1]), recipSide: sideOf(m[3]), actorSpan: [aOff, aOff + m[1].length], recipSpan: [rOff, rOff + m[3].length] };
+    }
+    return null;
   }
   function dirFix(text, dPat, mPat) {
-    var out = text.slice(0, dPat.recipSpan[0]) + mPat.recip + text.slice(dPat.recipSpan[1]);
-    var a = mPat.actor;
-    var firstChar = text.search(/\S/);
-    if (dPat.actorSpan[0] <= firstChar) a = a.charAt(0).toUpperCase() + a.slice(1);
-    return out.slice(0, dPat.actorSpan[0]) + a + out.slice(dPat.actorSpan[1]);
+    // each replacement keeps the case of the draft word it replaces
+    function cased(orig, repl) {
+      if (orig && orig.charAt(0) === orig.charAt(0).toUpperCase()) return repl.charAt(0).toUpperCase() + repl.slice(1);
+      return repl.charAt(0).toLowerCase() + repl.slice(1);
+    }
+    var recipNew = cased(text.slice(dPat.recipSpan[0], dPat.recipSpan[1]), mPat.recip);
+    var out = text.slice(0, dPat.recipSpan[0]) + recipNew + text.slice(dPat.recipSpan[1]);
+    var actorNew = cased(text.slice(dPat.actorSpan[0], dPat.actorSpan[1]), mPat.actor);
+    return out.slice(0, dPat.actorSpan[0]) + actorNew + out.slice(dPat.actorSpan[1]);
   }
 
   /* ---------------- quote sanity cap (no walls of text) ---------------- */
@@ -428,6 +443,10 @@
     var reD = /[$€£]\s?\d[\d,]*(?:\.\d+)?(?:\s?(?:[kKmM]|bn)\b|\s+(?:thousand|million|billion)\b)?/g;
     while ((m = reD.exec(work))) { var v = amtValOf(m[0]); if (v !== null) { facts.money.push({ value: v, raw: s.slice(m.index, m.index + m[0].length), span: [m.index, m.index + m[0].length] }); mask(m.index, m.index + m[0].length); } }
     work = masked.join('');
+    // money: ISO code prefix ("EUR 4,000", "USD 1.5 million")
+    var reISO = /\b(?:EUR|USD|GBP)\s?\d[\d,]*(?:\.\d+)?(?:\s?(?:[kKmM]|bn)\b|\s+(?:thousand|million|billion)\b)?/gi;
+    while ((m = reISO.exec(work))) { var vI = amtValOf(m[0]); if (vI !== null) { facts.money.push({ value: vI, raw: s.slice(m.index, m.index + m[0].length), span: [m.index, m.index + m[0].length] }); mask(m.index, m.index + m[0].length); } }
+    work = masked.join('');
     // money: digits + dollars/USD, digits with k suffix
     var reDK = /\b\d[\d,]*(?:\.\d+)?\s*(?:dollars?|USD|euros?|EUR|pounds?|GBP)\b/gi;
     while ((m = reDK.exec(work))) { var v2 = amtValOf(m[0]); if (v2 !== null) { facts.money.push({ value: v2, raw: s.slice(m.index, m.index + m[0].length), span: [m.index, m.index + m[0].length] }); mask(m.index, m.index + m[0].length); } }
@@ -565,7 +584,7 @@
     return facts;
   }
   function amtValOf(t) {
-    t = t.trim();
+    t = t.trim().replace(/^(?:EUR|USD|GBP)\s*/i, '');
     if (/^[$€£]/.test(t) || /^\d/.test(t)) {
       var mult = 1;
       var wm = t.match(/(thousand|million|billion)\s*$/i);
@@ -573,7 +592,7 @@
       else if (/bn\s*$/i.test(t)) mult = 1e9;
       else if (/[kK]\s*$/.test(t)) mult = 1e3;
       else if (/[mM]\s*$/.test(t)) mult = 1e6;
-      var n = parseFloat(t.replace(/[$€£,\s]/g, '').replace(/(thousand|million|billion|bn|[kKmM])$/i, ''));
+      var n = parseFloat(t.replace(/[$€£,\s]/g, '').replace(/(thousand|million|billion|bn|eur|usd|gbp|[kKmM])$/i, ''));
       if (isNaN(n)) return null;
       return n * mult;
     }
@@ -607,6 +626,50 @@
       return { text: s.text, timestamp: s.timestamp, speaker: s.speaker, index: i, facts: facts, toks: tokens(s.text), ids: idsOf(s.text) };
     });
   }
+  /* Self-correction: when a speaker corrects a figure, the LATER value is the
+     only meeting fact. A superseded value must never be quoted as "Meeting
+     said" and never be proposed by a Copy fix, so it is retired here, before
+     any indexing or pairing happens. Two shapes: a correction marker (or a
+     dash-restart) between two facts of a kind inside one sentence, and a
+     correction marker in the next sentence of the same speaker's turn. */
+  var CORRECT_MARK = /\b(actually|sorry|no\s*,?\s*wait|i\s+mean|correct\w*)\b/i;
+  function applyCorrections(meeting) {
+    var KINDS = ['money', 'counts', 'percent', 'terms', 'dates'];
+    function linked(text, a, b) {
+      var mid = text.slice(a, b);
+      if (CORRECT_MARK.test(mid)) return true;
+      // a dash-restart: exactly one dash between the values (a parenthetical
+      // pair has two), and not a summation dash ("$900 — so $1,800")
+      var dashes = mid.match(/—|–/g);
+      if (dashes && dashes.length === 1 && !/^\s*so\b/i.test(mid.slice(mid.search(/—|–/) + 1))) return true;
+      return false;
+    }
+    meeting.forEach(function (s) {
+      KINDS.forEach(function (kind) {
+        var arr = s.facts[kind];
+        if (!arr || arr.length < 2) return;
+        arr = arr.slice().sort(function (x, y) { return x.span[0] - y.span[0]; });
+        var keep = [arr[0]];
+        for (var i = 1; i < arr.length; i++) {
+          if (linked(s.text, keep[keep.length - 1].span[1], arr[i].span[0])) keep[keep.length - 1] = arr[i];
+          else keep.push(arr[i]);
+        }
+        if (keep.length !== arr.length) s.facts[kind] = keep;
+      });
+    });
+    for (var i = 0; i + 1 < meeting.length; i++) {
+      var s1 = meeting[i], s2 = meeting[i + 1];
+      if ((s1.speaker || null) !== (s2.speaker || null)) continue;
+      var mm = s2.text.match(CORRECT_MARK);
+      if (!mm) continue;
+      KINDS.forEach(function (kind) {
+        var a1 = s1.facts[kind], a2 = s2.facts[kind];
+        if (!a1 || a1.length !== 1 || !a2 || a2.length !== 1) return;
+        // the marker must introduce (or immediately trail) the correcting value
+        if (mm.index < a2[0].span[0] || mm.index <= a2[0].span[1] + 24) s1.facts[kind] = [];
+      });
+    }
+  }
   function check(transcriptText, draftText, opts) {
     opts = opts || {};
     var tLimit = opts.transcriptWords || 15000, dLimit = opts.draftWords || 3000;
@@ -625,6 +688,7 @@
 
     var meeting = buildSentences(transcriptText);
     var draft = buildSentences(draftText);
+    applyCorrections(meeting);
 
     // idf over meeting sentences
     var df = {}, N = meeting.length || 1;
@@ -649,6 +713,10 @@
     // zero-fee facts, payment terms and the agreed total, indexed meeting-wide
     var zeroByKey = {};
     meeting.forEach(function (s) { s.facts.zeroFees.forEach(function (z) { if (!zeroByKey[z.key]) zeroByKey[z.key] = { s: s, z: z }; }); });
+    // charged fees indexed by fee noun, so a draft that denies a fee the
+    // meeting charges can be caught in the reverse direction too
+    var feeByKey = {};
+    meeting.forEach(function (s) { s.facts.money.forEach(function (f) { var k = draftFeeKey(s.text, f.span); if (k && !feeByKey[k]) feeByKey[k] = { s: s, f: f }; }); });
     var tTermDays = {};
     meeting.forEach(function (s) { s.facts.terms.forEach(function (f) { tTermDays[f.days] = 1; }); });
     var agreedTotal = null;
@@ -801,6 +869,18 @@
           var wm = cands[0].s.facts.windows[0];
           if (wm.key === wf.key) return;
           addFlag({ type: 'Promise', beta: true, confidence: confOf(cands[0].sc), draftIndex: d.index, draftSentence: d.text, draftSpan: wf.span, draftFactText: wf.raw, meetingSentence: cands[0].s.text, meetingSpan: wm.span, meetingFactText: wm.raw, timestamp: cands[0].s.timestamp, fix: fixFor(d.text, wf.span, wm.raw) });
+        });
+      }
+      // --- fee dropped: the meeting charges a fee the draft says does not exist ---
+      if (df.zeroFees.length) {
+        df.zeroFees.forEach(function (zf) {
+          if (zeroByKey[zf.key]) return; // the meeting itself says this fee does not exist
+          var hit = feeByKey[zf.key];
+          if (!hit) return;
+          var mtxt = hit.s.text;
+          var cond = /\bwaived?\b[^.;]*\b(?:if|unless|provided)\b/i.test(mtxt) || /\b(?:if|unless)\b[^.;]*\bwaived?\b/i.test(mtxt);
+          if (!cond && /\bwaived?\b/i.test(mtxt)) return; // the fee is unconditionally waived in the meeting
+          addFlag({ type: 'Amount', beta: false, confidence: cond ? 'Low' : 'High', draftIndex: d.index, draftSentence: d.text, draftSpan: zf.span, draftFactText: zf.raw, meetingSentence: hit.s.text, meetingSpan: fullSpanOf(hit.f), meetingFactText: fullRawOf(hit.s.text, hit.f), timestamp: hit.s.timestamp, fix: fixFor(d.text, zf.span, formatLike(hit.f.raw, hit.f) + ' ' + zf.key + ' fee') });
         });
       }
       // --- dates (per-fact: walk candidates until one confirms or conflicts) ---
