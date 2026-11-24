@@ -290,8 +290,11 @@
       if (/^WEBVTT/i.test(line) || /^NOTE\b/.test(line) || /^STYLE\b/.test(line) || /^REGION\b/.test(line)) continue;
       if (/-->/.test(line) && /\d{1,2}:\d{2}/.test(line)) continue;
       if (/^\d{1,4}$/.test(line) && /-->/.test(text)) continue;
+      // a <v Name> voice tag names the speaker (Teams VTT); capture it before
+      // stripping — the name is the speaker label, not markup to throw away
+      var vname = null;
+      line = line.replace(/<v(?:\.[^>\s]+)?\s+([^>]+)>/gi, function (_, nm) { if (!vname) vname = nm.trim(); return ' '; });
       // inline subtitle tags never survive into a quote
-      line = line.replace(/<v(?:\.[^>\s]+)?\s+[^>]*>/gi, ' ');
       line = line.replace(/<\/?(?:v|c|i|b|u|font|ruby|rt|lang)(?:\s[^>]*)?>/gi, '');
       line = line.replace(/<\d{1,2}:\d{2}(?::\d{2})?[.,]?\d*>/g, '');
       line = line.replace(/\s+/g, ' ').trim();
@@ -302,8 +305,31 @@
       if ((m = line.match(SPK_RE)) && !/^\d/.test(m[1])) { speaker = m[1]; line = line.slice(m[0].length); }
       // "Speaker 12:04:" style: speaker label that itself carries a time
       if (!ts && speaker && /\d/.test(speaker)) { speaker = null; }
+      if (!speaker && vname && !NAME_STOP[vname]) speaker = vname;
       var sents = splitSentences(line);
       for (var j = 0; j < sents.length; j++) out.push({ text: sents[j], timestamp: ts, speaker: speaker });
+    }
+    return mergeTurns(out);
+  }
+  /* Turn assembly: subtitle cues often split one spoken sentence across two
+     lines ("The fee is eight" / "thousand dollars total."). Merge a fragment
+     into the previous turn when it is plainly the same utterance: same
+     speaker, the previous text carries no sentence-final punctuation, and
+     this turn opens with a lowercase continuation. A new sentence — a
+     capitalised opening, or anything after a full stop — is never merged,
+     and neither is a fragment that follows a complete fact sentence. */
+  function mergeTurns(turns) {
+    var out = [];
+    for (var i = 0; i < turns.length; i++) {
+      var t = turns[i], prev = out[out.length - 1];
+      if (prev && (prev.speaker || null) === (t.speaker || null)
+        && !/[.!?…]["'”’)]?\s*$/.test(prev.text)
+        && /^[a-z]/.test(t.text)
+        && prev.text.split(/\s+/).length <= 12) {
+        prev.text = prev.text + ' ' + t.text;
+        continue;
+      }
+      out.push({ text: t.text, timestamp: t.timestamp, speaker: t.speaker });
     }
     return out;
   }
@@ -713,7 +739,7 @@
   }
   function check(transcriptText, draftText, opts) {
     opts = opts || {};
-    var tLimit = opts.transcriptWords || 15000, dLimit = opts.draftWords || 3000;
+    var tLimit = opts.transcriptWords || 40000, dLimit = opts.draftWords || 3000;
     function words(t) { return (String(t || '').trim().match(/\S+/g) || []).length; }
     function truncate(t, n) {
       var parts = String(t).split(/\s+/);
@@ -1249,12 +1275,237 @@
     return out.join('\n');
   }
 
+  /* ---------------- file import (Part B): any supported file -> box text ------
+     Zero network, no libraries. Detection is by CONTENT — the extension is
+     only a hint: ZIP signature -> DOCX, JSON braces -> the Fireflies JSON
+     reader, WEBVTT / timing arrows -> the subtitle reader, markdown markers
+     -> a light strip, anything else -> plain text with speaker-block joining.
+     A file that cannot be decoded, unzipped, or parsed into at least one
+     turn resolves { ok:false }: the page shows one plain message and runs no
+     check, so an unreadable file can never end as "No mismatches found". */
+  function u16(b, o) { return b[o] | (b[o + 1] << 8); }
+  function u32(b, o) { return (b[o] | (b[o + 1] << 8) | (b[o + 2] << 16) | (b[o + 3] << 24)) >>> 0; }
+  // Minimal ZIP reader: central directory -> one entry's raw bytes.
+  function zipEntry(bytes, want) {
+    var n = bytes.length, eocd = -1;
+    for (var i = n - 22; i >= Math.max(0, n - 65558); i--) {
+      if (u32(bytes, i) === 0x06054b50) { eocd = i; break; }
+    }
+    if (eocd < 0) return null;
+    var count = u16(bytes, eocd + 10), off = u32(bytes, eocd + 16);
+    for (var e = 0; e < count; e++) {
+      if (off + 46 > n || u32(bytes, off) !== 0x02014b50) return null;
+      var method = u16(bytes, off + 10), csize = u32(bytes, off + 20);
+      var nl = u16(bytes, off + 28), xl = u16(bytes, off + 30), cl = u16(bytes, off + 32);
+      var name = '';
+      for (var j = 0; j < nl; j++) name += String.fromCharCode(bytes[off + 46 + j]);
+      if (name === want) {
+        var lo = u32(bytes, off + 42);
+        if (lo + 30 > n || u32(bytes, lo) !== 0x04034b50) return null;
+        var start = lo + 30 + u16(bytes, lo + 26) + u16(bytes, lo + 28);
+        if (start + csize > n) return null;
+        return { method: method, data: bytes.subarray(start, start + csize) };
+      }
+      off += 46 + nl + xl + cl;
+    }
+    return null;
+  }
+  function inflateRaw(data) {
+    if (typeof DecompressionStream === 'undefined') return Promise.reject(new Error('DecompressionStream unavailable'));
+    var stream = new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+    return new Response(stream).arrayBuffer().then(function (buf) { return new Uint8Array(buf); });
+  }
+  function xmlToLines(xml) {
+    var s = String(xml || '');
+    s = s.replace(/<w:tab\b[^>]*\/?>/g, '\t').replace(/<w:br\b[^>]*\/?>/g, '\n');
+    s = s.replace(/<\/w:p>/g, '\n');
+    s = s.replace(/<[^>]+>/g, '');
+    s = s.replace(/&#x([0-9a-fA-F]+);/g, function (_, h) { return String.fromCharCode(parseInt(h, 16)); })
+      .replace(/&#(\d+);/g, function (_, d) { return String.fromCharCode(parseInt(d, 10)); })
+      .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'")
+      .replace(/&amp;/g, '&');
+    return s;
+  }
+  function docxText(bytes) {
+    var entry = zipEntry(bytes, 'word/document.xml');
+    if (!entry) return Promise.resolve(null);
+    function done(raw) {
+      try { return xmlToLines(new TextDecoder('utf-8').decode(raw)); }
+      catch (e) { return null; }
+    }
+    if (entry.method === 0) return Promise.resolve(done(entry.data));
+    if (entry.method === 8) return inflateRaw(entry.data).then(done, function () { return null; });
+    return Promise.resolve(null);
+  }
+  function decodeText(bytes) {
+    try {
+      if (bytes.length >= 2 && bytes[0] === 0xFF && bytes[1] === 0xFE) return new TextDecoder('utf-16le', { fatal: true }).decode(bytes);
+      if (bytes.length >= 2 && bytes[0] === 0xFE && bytes[1] === 0xFF) return new TextDecoder('utf-16be', { fatal: true }).decode(bytes);
+      var text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+      // binary that happens to decode: control-char soup is not a transcript
+      var sample = text.slice(0, 4000), bad = 0;
+      for (var i = 0; i < sample.length; i++) {
+        var c = sample.charCodeAt(i);
+        if (c === 0xFFFD || (c < 32 && c !== 9 && c !== 10 && c !== 13)) bad++;
+      }
+      if (sample.length && bad / sample.length > 0.02) return null;
+      return text;
+    } catch (e) { return null; }
+  }
+  function fmtClock(sec) {
+    sec = Math.max(0, Math.floor(sec));
+    var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+    function p(x) { return (x < 10 ? '0' : '') + x; }
+    return h ? h + ':' + p(m) + ':' + p(s) : p(m) + ':' + p(s);
+  }
+  function clockVal(v) {
+    if (typeof v === 'number' && isFinite(v)) return fmtClock(v);
+    if (typeof v === 'string') {
+      var m = v.match(/\d{1,2}:\d{2}(?::\d{2})?/);
+      if (m) return m[0];
+      var f = parseFloat(v);
+      if (isFinite(f)) return fmtClock(f);
+    }
+    return null;
+  }
+  // Fireflies JSON: sentences carry speaker name / text / start time. Tolerant
+  // about key spellings and about where the sentence list lives.
+  function jsonToText(obj) {
+    var arr = null;
+    if (Array.isArray(obj)) arr = obj;
+    else if (obj && typeof obj === 'object') {
+      var keys = ['sentences', 'transcript', 'segments', 'utterances', 'results'];
+      for (var i = 0; i < keys.length; i++) if (Array.isArray(obj[keys[i]])) { arr = obj[keys[i]]; break; }
+    }
+    var lines = [];
+    if (arr) {
+      for (var j = 0; j < arr.length; j++) {
+        var it = arr[j];
+        if (!it || typeof it !== 'object') continue;
+        var text = it.text || it.sentence || it.content || '';
+        if (typeof text !== 'string' || !text.trim()) continue;
+        var spk = it.speaker_name != null ? it.speaker_name : (it.speakerName != null ? it.speakerName : (it.speaker != null ? it.speaker : it.name));
+        if (spk && typeof spk === 'object') spk = spk.name || null;
+        var ts = clockVal(it.start_time != null ? it.start_time : (it.startTime != null ? it.startTime : (it.start != null ? it.start : it.timestamp)));
+        lines.push((ts ? '[' + ts + '] ' : '') + (spk ? String(spk).trim() + ': ' : '') + text.trim());
+      }
+    }
+    if (lines.length) return lines.join('\n');
+    // unknown shape: best-effort leaf text, only when the keys hint at a transcript
+    if (obj && typeof obj === 'object' && /sentence|transcript|speaker/i.test(Object.keys(obj).join(' '))) {
+      var leaves = [];
+      (function walk(o, depth) {
+        if (depth > 6 || leaves.length > 400) return;
+        if (typeof o === 'string') { if (o.trim().length >= 2) leaves.push(o.trim()); return; }
+        if (Array.isArray(o)) { for (var a = 0; a < o.length; a++) walk(o[a], depth + 1); return; }
+        if (o && typeof o === 'object') { for (var k in o) walk(o[k], depth + 1); }
+      })(obj, 0);
+      if (leaves.length) return leaves.join('\n');
+    }
+    return null;
+  }
+  function stripMarkdown(text) {
+    return String(text || '').split(/\r?\n/).map(function (line) {
+      var s = line;
+      s = s.replace(/^\s{0,3}#{1,6}\s+/, '');
+      s = s.replace(/^\s*>\s?/, '');
+      s = s.replace(/^\s*(?:[-*+]|\d+[.)])\s+/, '');
+      s = s.replace(/\[([^\]]+)\]\([^)]*\)/g, '$1');
+      s = s.replace(/(\*\*|__)(.+?)\1/g, '$2');
+      s = s.replace(/(^|\W)(\*|_)([^*_]+?)\2(?=\W|$)/g, '$1$3');
+      s = s.replace(/`([^`]+)`/g, '$1');
+      return s;
+    }).join('\n');
+  }
+  function looksMarkdown(text) {
+    var head = text.slice(0, 4000);
+    return /(^|\n)\s{0,3}#{1,6}\s+\S/.test(head) || /\*\*[^*\n]{2,}\*\*/.test(head) || /__[^_\n]{2,}__/.test(head);
+  }
+  /* Speaker-block joining: Otter / Meet / Teams exports put the speaker and
+     time on their own line(s) and the words on the lines after. Join each
+     block into one "[ts] Name: text" line so the normal turn parser sees the
+     speaker and the timestamp. Only whole-line headers trigger a join, so
+     inline "Name: text" lines and plain prose pass through untouched. */
+  var HDR_RE = /^([A-Z][A-Za-z.'-]+(?: [A-Z][A-Za-z.'-]+){0,2})\s+(\d{1,2}:\d{2}(?::\d{2})?)\s*:?\s*$/;
+  var NAME_ONLY_RE = /^([A-Z][A-Za-z.'-]+(?: [A-Z][A-Za-z.'-]+){0,2})$/;
+  var BARE_TS_RE = /^\[?(\d{1,2}:\d{2}(?::\d{2})?)\]?$/;
+  function nameOk(name) {
+    return name.split(' ').every(function (w) { return !NAME_STOP[w]; });
+  }
+  function joinSpeakerBlocks(text) {
+    var lines = String(text || '').split(/\r?\n/), out = [], i = 0, changed = false;
+    function isNameLine(s) { return NAME_ONLY_RE.test(s) && nameOk(s); }
+    while (i < lines.length) {
+      var line = lines[i].trim(), name = null, ts = null, headLen = 0;
+      var hm = line.match(HDR_RE);
+      if (hm && nameOk(hm[1])) { name = hm[1]; ts = hm[2]; headLen = 1; }
+      else if (isNameLine(line) && i + 1 < lines.length) {
+        var tm = lines[i + 1].trim().match(BARE_TS_RE);
+        if (tm) { name = line; ts = tm[1]; headLen = 2; }
+      }
+      if (name) {
+        var j = i + headLen, body = [];
+        while (j < lines.length) {
+          var bl = lines[j].trim();
+          if (!bl) { j++; break; }
+          if (HDR_RE.test(bl) && nameOk(bl.match(HDR_RE)[1])) break;
+          if (isNameLine(bl) && j + 1 < lines.length && BARE_TS_RE.test(lines[j + 1].trim())) break;
+          body.push(bl); j++;
+        }
+        if (body.length) {
+          out.push('[' + ts + '] ' + name + ': ' + body.join(' '));
+          changed = true; i = j; continue;
+        }
+      }
+      out.push(lines[i]); i++;
+    }
+    return changed ? out.join('\n') : text;
+  }
+  function importFileData(name, data) {
+    var bytes = data instanceof Uint8Array ? data : new Uint8Array(data || []);
+    var ext = (String(name || '').match(/\.([a-z0-9]+)$/i) || [])[1];
+    ext = ext ? ext.toLowerCase() : '';
+    function finish(text, format) {
+      if (text == null) return { ok: false, format: format || null };
+      var turns = parseLines(text);
+      if (!turns.length) return { ok: false, format: format || null };
+      return { ok: true, text: text, format: format, turns: turns };
+    }
+    // a DOCX is a ZIP, whatever the file happens to be called
+    if (bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4B && bytes[2] === 0x03 && bytes[3] === 0x04) {
+      return docxText(bytes).then(function (text) {
+        if (text == null) return { ok: false, format: 'docx' };
+        return finish(joinSpeakerBlocks(text), 'docx');
+      }, function () { return { ok: false, format: 'docx' }; });
+    }
+    var text = decodeText(bytes);
+    if (text == null) return Promise.resolve({ ok: false, format: null });
+    var trimmed = text.trim(), head = text.slice(0, 4000);
+    if (trimmed.charAt(0) === '{' || trimmed.charAt(0) === '[') {
+      var obj = null;
+      try { obj = JSON.parse(trimmed); } catch (e) { obj = null; }
+      if (obj !== null) {
+        var jt = jsonToText(obj);
+        return Promise.resolve(jt != null ? finish(jt, 'json') : { ok: false, format: 'json' });
+      }
+      // braces but not JSON: fall through to the plain-text path
+    }
+    if (/^WEBVTT/i.test(trimmed) || /\d{1,2}:\d{2}(?::\d{2})?[.,]?\d*\s*-->/.test(head) || ext === 'vtt' || ext === 'srt') {
+      return Promise.resolve(finish(parseSubtitleFile(text), 'subtitle'));
+    }
+    if (ext === 'md' || looksMarkdown(text)) {
+      return Promise.resolve(finish(joinSpeakerBlocks(stripMarkdown(text)), 'markdown'));
+    }
+    return Promise.resolve(finish(joinSpeakerBlocks(text), 'text'));
+  }
+
   return {
     check: check,
     parseLines: parseLines,
     extractFacts: extractFacts,
     SAMPLE: SAMPLE,
     parseSubtitleFile: parseSubtitleFile,
+    importFileData: importFileData,
     _internal: { wordVal: wordVal, dateConflict: dateConflict, tokens: tokens }
   };
 });
