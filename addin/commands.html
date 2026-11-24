@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Proofaro — send-time check runtime</title>
+  <!-- The LaunchEvent runtime page: no UI. Outlook (browser runtimes: web, Mac, new
+       Windows) loads this page for the OnMessageSend event; the handler lives in the
+       bundle below. Classic Windows uses the same URL as its FunctionFile and calls the
+       handler by name from the JavaScript-only runtime. -->
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+</head>
+<body>
+  <script src="./dist/commands.js"></script>
+</body>
+</html>

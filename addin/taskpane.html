@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Proofaro — check before you send</title>
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  <style>
+    body { font-family: -apple-system, "Segoe UI", sans-serif; margin: 16px; color: #1a0a35; }
+    .title { font-size: 17px; margin: 0 0 12px; }
+    .note, .notice { color: #5b4a86; font-size: 13px; }
+    .notice { font-weight: 600; }
+    .meeting { font-weight: 600; }
+    .clean { color: #1d7a3a; font-weight: 600; }
+    .card { border: 1px solid #d9cdf5; border-radius: 8px; padding: 10px 12px; margin: 10px 0; }
+    .card.dismissed, .card.resolved { opacity: 0.62; }
+    .card h2 { font-size: 13px; margin: 0 0 6px; text-transform: uppercase; letter-spacing: 0.04em; color: #642df4; }
+    .card p { margin: 4px 0; font-size: 14px; }
+    .settled { font-style: italic; }
+    button { margin: 6px 8px 2px 0; padding: 6px 12px; border-radius: 6px; border: 1px solid #642df4; background: #642df4; color: #fff; cursor: pointer; }
+    button + button { background: #fff; color: #642df4; }
+    .send-anyway { background: #fff; color: #642df4; font-weight: 600; }
+    input[type="text"] { width: 100%; box-sizing: border-box; padding: 8px; margin: 8px 0; }
+    select { max-width: 100%; padding: 4px; }
+  </style>
+</head>
+<body>
+  <main id="pane"><p>Proofaro is getting ready…</p></main>
+  <script src="./dist/taskpane.js"></script>
+</body>
+</html>
