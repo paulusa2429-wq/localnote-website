@@ -270,7 +270,8 @@ checkBtn=document.getElementById('checkBtn'),sampleBtn=document.getElementById('
 progress=document.getElementById('progress'),bar=document.getElementById('progressBar'),
 results=document.getElementById('results'),cta=document.getElementById('resultsCta'),
 truncNote=document.getElementById('truncNote');
-var T_LIMIT=15000,D_LIMIT=3000,lastResult=null,visibleCount=0;
+var T_LIMIT=15000,D_LIMIT=3000,lastResult=null,visibleCount=0,dismissedFlags=new Set();
+function visibleFlags(){return lastResult?lastResult.flags.filter(function(f,i){return !dismissedFlags.has(i)}):[];}
 function gc(name){try{if(window.goatcounter&&window.goatcounter.count)window.goatcounter.count({path:'events/'+name,title:name,event:true});}catch(e){}}
 function words(t){return (String(t||'').trim().match(/\S+/g)||[]).length}
 function updCounts(){
@@ -306,7 +307,7 @@ function cardHTML(f,i){
  return '<article class="flagCard'+(f.confidence==='Low'?' low':'')+'" data-card="'+i+'">'+top+lines+btns+'</article>';
 }
 function render(res){
- lastResult=res;
+ lastResult=res; dismissedFlags=new Set();
  var flags=res.flags,high=flags.filter(function(f){return f.confidence==='High'}),low=flags.filter(function(f){return f.confidence!=='High'});
  visibleCount=flags.length;
  var html='';
@@ -325,11 +326,13 @@ function render(res){
  cta.hidden=false;
  buildPrint(res);
 }
-function buildPrint(res){
+function buildPrint(res,flags){
  var el=document.getElementById('printReport');
+ var list=flags||res.flags;
  var h='<h1>Proofaro — check results</h1><p>'+new Date().toLocaleString()+' · Checked in your browser with the free Proofaro checker.</p>';
- if(!res.flags.length){h+='<p>No mismatches found in numbers, dates, names or promises. Still worth one last read.</p>';}
- res.flags.forEach(function(f){
+ if(!list.length){h+='<p>No mismatches found in numbers, dates, names or promises. Still worth one last read.</p>';}
+ else{h+='<p><b>'+list.length+(list.length===1?' mismatch':' mismatches')+' found.</b></p>';}
+ list.forEach(function(f){
   h+='<div class="prFlag"><p><b>'+TYPE_LABEL[f.type]+(f.beta?' · Beta':' · '+f.confidence+' confidence')+'</b></p>';
   if(f.draftSentence)h+='<p>Draft says: '+esc(f.draftSentence)+'</p>';
   if(f.dropped)h+='<p>Missing from your draft: this was said in the meeting but never made it into the draft.</p>';
@@ -370,7 +373,7 @@ results.addEventListener('click',function(e){
  if(ds){
   var card=ds.closest('[data-card]');
   gc('not_a_mismatch');
-  if(card){card.remove();visibleCount--;var s=document.getElementById('resultsSummary');if(s)s.textContent=visibleCount+(visibleCount===1?' mismatch':' mismatches')+' found.';}
+  if(card){card.remove();visibleCount--;dismissedFlags.add(+ds.dataset.dismiss);if(lastResult)buildPrint(lastResult,visibleFlags());var s=document.getElementById('resultsSummary');if(s)s.textContent=visibleCount+(visibleCount===1?' mismatch':' mismatches')+' found.';}
  }
 });
 document.getElementById('ctaInvite').addEventListener('click',function(){gc('invite_clicked');});
@@ -384,7 +387,7 @@ document.getElementById('emailRow').addEventListener('submit',function(e){
  var msg=document.getElementById('invite-message');
  if(msg){var sent=false;var ob=new MutationObserver(function(){if(!sent&&/^Request received/.test(msg.textContent||'')){sent=true;gc('email_submitted');ob.disconnect();}});ob.observe(msg,{childList:true,characterData:true,subtree:true});setTimeout(function(){ob.disconnect();},120000);}
 });
-document.getElementById('pdfBtn').addEventListener('click',function(){if(lastResult)buildPrint(lastResult);window.print();});
+document.getElementById('pdfBtn').addEventListener('click',function(){if(lastResult)buildPrint(lastResult,visibleFlags());window.print();});
 function wireUpload(inputId,area){
  var inp=document.getElementById(inputId);
  inp.addEventListener('change',function(){
