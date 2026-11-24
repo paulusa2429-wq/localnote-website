@@ -158,14 +158,17 @@
     if (tail) return /dol|usd/i.test(tail[1]) ? 'USD' : (/eur/i.test(tail[1]) ? 'EUR' : 'GBP');
     return null;
   }
-  var PERIOD_MAP = { month: 'month', monthly: 'month', mo: 'month', year: 'year', annually: 'year', yearly: 'year', annum: 'year', yr: 'year', week: 'week', weekly: 'week', quarter: 'quarter', quarterly: 'quarter', day: 'day', daily: 'day' };
+  var PERIOD_MAP = { month: 'month', monthly: 'month', mo: 'month', year: 'year', annually: 'year', yearly: 'year', annum: 'year', yr: 'year', week: 'week', weekly: 'week', quarter: 'quarter', quarterly: 'quarter', day: 'day', daily: 'day', night: 'night', nightly: 'night', hour: 'hour', hourly: 'hour', seat: 'seat', person: 'person', guest: 'guest', head: 'head', ticket: 'ticket' };
   // periods per year, for annualised rate comparison. 'day' is deliberately
-  // absent: daily rates keep the raw-value comparison they have today.
-  var ANNUAL_FACTOR = { week: 52, month: 12, quarter: 4, year: 1 };
+  // absent: daily rates keep the raw-value comparison they have today. The
+  // per-unit bases (hour, seat, person, guest, head, ticket) are likewise
+  // absent — they compare raw, like-for-like. 'night' annualises at 365:
+  // the 365-vs-364 gap against week x 52 sits inside the 1% tolerance.
+  var ANNUAL_FACTOR = { week: 52, month: 12, quarter: 4, year: 1, night: 365 };
   function periodAfter(s, end) {
     var rest = s.slice(end, end + 18);
-    var m = rest.match(/^\s*(?:per\s+|a\s+|an\s+|\/\s*)(month|year|week|quarter|day|annum)\b/i)
-      || rest.match(/^\s*(monthly|annually|yearly|weekly|quarterly|daily)\b/i)
+    var m = rest.match(/^\s*(?:per\s+|a\s+|an\s+|\/\s*)(month|year|week|quarter|day|annum|night|hour|seat|person|guest|head|ticket)\b/i)
+      || rest.match(/^\s*(monthly|annually|yearly|weekly|quarterly|daily|nightly|hourly)\b/i)
       || rest.match(/^\s*\/\s*(mo|yr)\b/i);
     if (!m) return null;
     return { key: PERIOD_MAP[m[1].toLowerCase()], raw: m[0].trim(), end: end + m[0].length };
@@ -505,11 +508,16 @@
           mask(m.index, m.index + rawW.length); work = masked.join(''); continue;
         }
       }
-      // spoken rate: "eighty a night", "two forty a week" (the [ones][tens]
-      // dictation shorthand for 240) — a number riding on a per-unit phrase in
-      // a money-context sentence is an amount even when it is under 100
-      var rateM = after.match(/^\s+(?:a|per)\s+(night|day|week|month|hour|year)\b/i);
-      if (rateM && (MONEY_CTX.test(s) || /[$€£]|\b(?:dollars?|euros?|pounds?|usd|eur|gbp)\b/i.test(s))) {
+      // spoken rate: "eighty a night", "two forty per seat" (the [ones][tens]
+      // dictation shorthand for 240) — a number riding directly on a per-unit
+      // phrase IS a rate, so the unit phrase itself is the money evidence: no
+      // sentence-level money context is required. (This branch is only reached
+      // after the currency-word and real-noun count branches above have
+      // declined the match, so "five meetings a week" stays a count.) The fact
+      // goes through the same comparison as any other amount — extraction
+      // without comparison was a false "all clear" waiting to happen.
+      var rateM = after.match(/^\s+(?:a|an|per)\s+(night|day|week|month|hour|year|seat|person|guest|head|ticket)\b/i);
+      if (rateM) {
         var rVal = val, toksW = rawW.toLowerCase().replace(/-/g, ' ').trim().split(/\s+/);
         if (toksW.length === 2 && NUMW[toksW[0]] >= 1 && NUMW[toksW[0]] <= 9 && NUMW[toksW[1]] >= 20 && NUMW[toksW[1]] <= 90) rVal = NUMW[toksW[0]] * 100 + NUMW[toksW[1]];
         facts.money.push({ value: rVal, raw: s.slice(m.index, m.index + rawW.length), span: [m.index, m.index + rawW.length] });
