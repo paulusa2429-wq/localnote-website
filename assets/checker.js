@@ -159,6 +159,9 @@
     return null;
   }
   var PERIOD_MAP = { month: 'month', monthly: 'month', mo: 'month', year: 'year', annually: 'year', yearly: 'year', annum: 'year', yr: 'year', week: 'week', weekly: 'week', quarter: 'quarter', quarterly: 'quarter', day: 'day', daily: 'day' };
+  // periods per year, for annualised rate comparison. 'day' is deliberately
+  // absent: daily rates keep the raw-value comparison they have today.
+  var ANNUAL_FACTOR = { week: 52, month: 12, quarter: 4, year: 1 };
   function periodAfter(s, end) {
     var rest = s.slice(end, end + 18);
     var m = rest.match(/^\s*(?:per\s+|a\s+|an\s+|\/\s*)(month|year|week|quarter|day|annum)\b/i)
@@ -816,6 +819,26 @@
             if (cDiff || pDiff) {
               addFlag({ type: 'Amount', beta: false, confidence: confOf(pick.sc), draftIndex: d.index, draftSentence: d.text, draftSpan: fullSpanOf(mf), draftFactText: fullRawOf(d.text, mf), meetingSentence: pick.s.text, meetingSpan: fullSpanOf(pickFact), meetingFactText: fullRawOf(pick.s.text, pickFact), timestamp: pick.s.timestamp, fix: fixFor(d.text, fullSpanOf(mf), formatLike(fullRawOf(d.text, mf), pickFact) + (pDiff ? ' ' + pickFact.periodRaw : '')) });
             }
+            return;
+          }
+          // both sides carry a billing period: compare ANNUALISED rates, not raw
+          // values — $24,000 per year and $2,000 per month are the same retainer.
+          // An equivalent rate stays silent (a currency change still flags); a
+          // genuinely different rate flags, and its fix states the meeting's rate
+          // converted into the draft's own period — never the raw meeting value
+          // wearing the draft's period.
+          if (mf.period && pickFact.period && mf.period !== pickFact.period && ANNUAL_FACTOR[mf.period] && ANNUAL_FACTOR[pickFact.period]) {
+            var annM = pickFact.value * ANNUAL_FACTOR[pickFact.period];
+            var annD = mf.value * ANNUAL_FACTOR[mf.period];
+            var convFact = { value: annM / ANNUAL_FACTOR[mf.period], currency: pickFact.currency };
+            var curDiff = mf.currency && pickFact.currency && mf.currency !== pickFact.currency;
+            if (Math.abs(annD - annM) <= Math.max(annM * 0.01, 12)) {
+              if (curDiff) {
+                addFlag({ type: 'Amount', beta: false, confidence: confOf(pick.sc), draftIndex: d.index, draftSentence: d.text, draftSpan: fullSpanOf(mf), draftFactText: fullRawOf(d.text, mf), meetingSentence: pick.s.text, meetingSpan: fullSpanOf(pickFact), meetingFactText: fullRawOf(pick.s.text, pickFact), timestamp: pick.s.timestamp, fix: fixNumFor(d.text, mf.span, mf.raw, convFact) });
+              }
+              return;
+            }
+            addFlag({ type: 'Amount', beta: false, confidence: confOf(pick.sc), draftIndex: d.index, draftSentence: d.text, draftSpan: fullSpanOf(mf), draftFactText: fullRawOf(d.text, mf), meetingSentence: pick.s.text, meetingSpan: fullSpanOf(pickFact), meetingFactText: fullRawOf(pick.s.text, pickFact), timestamp: pick.s.timestamp, fix: fixNumFor(d.text, mf.span, mf.raw, convFact) });
             return;
           }
           // if the draft value is genuinely said in another, nearly-as-good sentence, stay quiet
