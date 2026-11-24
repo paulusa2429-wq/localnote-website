@@ -282,7 +282,16 @@
   var NAME_TIME_RE = /^([A-Z][A-Za-z.'-]+(?: [A-Z][A-Za-z.'-]+){0,2})\s+(\d{1,2}:\d{2}(?::\d{2})?)\s*(?:[-–—:]\s*)?/;
   var SPK_RE = /^([A-Z][A-Za-z.'-]+(?: [A-Z][A-Za-z.'-]+){0,2})\s*:\s+/;
   function parseLines(text) {
-    var lines = String(text || '').split(/\r?\n/), out = [];
+    // inline bracketed timestamps: a pasted transcript often carries
+    // several turns on one physical line ("... March 3. [00:01:30] Let
+    // us push it to March 17. [00:02:00] Fine by me."). Give each
+    // marker its own line so the per-line timestamp/speaker extraction
+    // below sees the same segmentation as the line-per-turn shape —
+    // otherwise the turns glue into one sentence, both dates land in
+    // a single sentence where chains cannot form, and the verdict
+    // depends on the paste format instead of the conversation.
+    text = String(text || '').replace(/([^\n])(\s*\[\d{1,2}:\d{2}(?::\d{2})?\]\s*)/g, '$1\n$2');
+    var lines = text.split(/\r?\n/), out = [];
     // Otter / Zoom TXT layout: a bare "Name 0:25" header line, its words on
     // the lines after. The header's speaker + timestamp carry onto those
     // lines until the block ends (a blank line, or a line with its own
@@ -503,6 +512,11 @@
     var reK = /\b\d[\d,]*(?:\.\d+)?[kK]\b/g;
     while ((m = reK.exec(work))) { var v3 = amtValOf(m[0]); if (v3 !== null && MONEY_CTX.test(s)) { facts.money.push({ value: v3, raw: s.slice(m.index, m.index + m[0].length), span: [m.index, m.index + m[0].length] }); mask(m.index, m.index + m[0].length); } }
     work = masked.join('');
+    // money: digits + "grand" ("20 grand" = $20,000 — the slang unit is
+    // unambiguous money, no sentence context needed)
+    var reDG = /\b(\d[\d,]*(?:\.\d+)?)\s+grand\b/gi;
+    while ((m = reDG.exec(work))) { var vG = parseFloat(m[1].replace(/,/g, '')) * 1000; facts.money.push({ value: vG, raw: s.slice(m.index, m.index + m[0].length), span: [m.index, m.index + m[0].length] }); mask(m.index, m.index + m[0].length); }
+    work = masked.join('');
     // percent: digits
     var reP = /\b\d[\d,]*(?:\.\d+)?\s*(?:%|percent\b|per cent\b)/gi;
     while ((m = reP.exec(work))) { facts.percent.push({ value: parseFloat(m[0].replace(/[^0-9.]/g, '')), raw: s.slice(m.index, m.index + m[0].length), span: [m.index, m.index + m[0].length] }); mask(m.index, m.index + m[0].length); }
@@ -538,6 +552,13 @@
         if (/dollars?|USD|euros?|EUR|pounds?|GBP/i.test(afterM[1])) facts.money.push({ value: val, raw: s.slice(full[0], full[1]), span: full });
         else facts.percent.push({ value: val, raw: s.slice(full[0], full[1]), span: full });
         mask(full[0], full[1]); work = masked.join(''); continue;
+      }
+      // spoken money unit: "twenty grand" = $20,000 (checked before the
+      // count-noun branch, which would otherwise file it as 20 "grands")
+      if (/^\s+grand\b/i.test(after)) {
+        var gEnd = m.index + rawW.length + after.match(/^\s+grand\b/i)[0].length;
+        facts.money.push({ value: val * 1000, raw: s.slice(m.index, gEnd), span: [m.index, gEnd] });
+        mask(m.index, gEnd); work = masked.join(''); continue;
       }
       var nounM = after.match(/^\s+(?:of\s+the\s+|of\s+)?([A-Za-z]+)/);
       if (nounM && !COUNT_ADJ[nounM[1].toLowerCase()] && !STOP[nounM[1].toLowerCase()] && nounM[1].length >= 3) {
@@ -654,6 +675,12 @@
         var key = feeKey(zm[1]);
         if (key && !facts.zeroFees.some(function (z) { return z.key === key; })) facts.zeroFees.push({ key: key, raw: zm[0], span: [zm.index, zm.index + zm[0].length] });
       }
+    });
+    // a money match can swallow the sentence comma that follows the
+    // amount ("$18,000, take it or leave it") — the comma is not part
+    // of the amount, and fact text is quoted back to the user
+    facts.money.forEach(function (f) {
+      if (/,$/.test(f.raw)) { f.raw = f.raw.slice(0, -1); if (f.span) f.span = [f.span[0], f.span[1] - 1]; }
     });
     return facts;
   }
@@ -782,6 +809,102 @@
 
     var meeting = buildSentences(transcriptText);
     var draft = buildSentences(draftText);
+    /* ---- bare-number adoption (pass #9) ----
+       A sentence carrying NO extracted value fact can still state a
+       value in speech shorthand: "Can you go to eighteen?" in the
+       middle of a money negotiation, "Bump it to 30." between two
+       counts of users. The lone bare mention is adopted into the one
+       kind whose real facts surround it (money or counts — never both,
+       that is ambiguous), inheriting the neighbourhood's scale for
+       money: beside $20,000, "eighteen" is $18,000 and "eighteen five"
+       is $18,500. Anything doubtful — two kinds nearby, several
+       numbers, an identifier ("room 12"), a clock reading ("at 5") —
+       is left alone: an unadopted number can only cost recall, while
+       a wrong adoption could manufacture a fact. */
+    function allFactSpans(s) {
+      var out = [];
+      // names/actors are deliberately absent: a sentence-initial number
+      // word ("Eighteen five, final offer.") is also read as a name, and
+      // that false name must not block the number's adoption
+      ['money', 'counts', 'dates', 'percent', 'terms', 'windows', 'zeroFees'].forEach(function (k) { (s.facts[k] || []).forEach(function (f) { if (f.span) out.push(f.span); }); });
+      if (s.facts.included) out.push(s.facts.included.span);
+      if (s.facts.billed) out.push(s.facts.billed.span);
+      return out;
+    }
+    function bareMentions(text, spans) {
+      var out = [];
+      function overlaps(sp) { return spans.some(function (x) { return sp[0] < x[1] && x[0] < sp[1]; }); }
+      var m;
+      var reD = /\b\d[\d,]*(?:\.\d+)?\b/g;
+      while ((m = reD.exec(text))) {
+        var sp = [m.index, m.index + m[0].length];
+        if (overlaps(sp)) continue;
+        var v = parseFloat(m[0].replace(/,/g, ''));
+        if (isNaN(v)) continue;
+        if (v >= 1900 && v <= 2100 && m[0].indexOf(',') === -1 && m[0].indexOf('.') === -1) continue; // a year
+        if (text.charAt(sp[1]) === ':') continue; // a clock time
+        out.push({ span: sp, value: v, fiveBase: null });
+      }
+      var reW2 = new RegExp('\\b' + NUMWORD + '(?![A-Za-z])(?:[-\\s]+' + NUMWORD + '(?![A-Za-z]))*', 'gi');
+      while ((m = reW2.exec(text))) {
+        var sp2 = [m.index, m.index + m[0].length];
+        if (overlaps(sp2)) continue;
+        if (out.some(function (o) { return sp2[0] < o.span[1] && o.span[0] < sp2[1]; })) continue;
+        var toks = m[0].toLowerCase().replace(/-/g, ' ').split(/\s+/).filter(Boolean);
+        var v2 = wordVal(m[0]);
+        if (v2 === null) continue;
+        var fiveBase = null;
+        if (toks.length === 2 && toks[1] === 'five' && NUMW[toks[0]] >= 3 && NUMW[toks[0]] <= 99) fiveBase = NUMW[toks[0]];
+        out.push({ span: sp2, value: v2, fiveBase: fiveBase });
+      }
+      return out;
+    }
+    function barePositioned(text, mt) {
+      var pre = text.slice(0, mt.span[0]);
+      if (/\bat\s*$/i.test(pre.slice(-10)) && mt.value <= 24) return false; // "meet at 5": a clock reading
+      var preWords = pre.trim().split(/\s+/).filter(Boolean);
+      if (preWords.length <= 1) return true; // sentence-initial: the number IS the utterance's point
+      if (/\b(to|for|it|down|up|be|do|make)\s*$/i.test(pre.slice(-24))) return true;
+      var post = text.slice(mt.span[1]).trim();
+      if (post === '' || /^[,.;!?]/.test(post)) return true; // sentence-final
+      return false;
+    }
+    meeting.forEach(function (s, si) {
+      if (s.facts.money.length || s.facts.counts.length || s.facts.dates.length || s.facts.percent.length || s.facts.terms.length) return;
+      var mentions = bareMentions(s.text, allFactSpans(s));
+      if (mentions.length !== 1) return;
+      var mt = mentions[0];
+      if (/(room|page|chapter|version|step|option|floor|suite|line|part|number|item|unit|level|phase|tier|no)\s*$/i.test(s.text.slice(0, mt.span[0]).slice(-20))) return;
+      if (mt.value < 2 && mt.fiveBase === null) return;
+      if (/^\s+of\b/i.test(s.text.slice(mt.span[1]))) return; // partitive prose ("one of the best")
+      if (!barePositioned(s.text, mt)) return;
+      var moneyN = null, countN = null;
+      for (var dj = -2; dj <= 2; dj++) {
+        if (!dj) continue;
+        var ns = meeting[si + dj];
+        if (!ns) continue;
+        if (!moneyN && ns.facts.money.some(function (f) { return !f.bare; })) moneyN = ns;
+        if (!countN && ns.facts.counts.some(function (f) { return !f.bare; })) countN = ns;
+      }
+      if (!moneyN === !countN) return; // neither kind nearby, or both: ambiguous
+      if (moneyN) {
+        var vals = [];
+        for (var dj2 = -2; dj2 <= 2; dj2++) { var ns2 = meeting[si + dj2]; if (ns2) ns2.facts.money.forEach(function (f) { if (!f.bare) vals.push(f.value); }); }
+        var scaleK = vals.length > 0 && vals.every(function (v) { return v >= 1000; });
+        var val;
+        if (mt.fiveBase !== null) { if (!scaleK) return; val = mt.fiveBase * 1000 + 500; }
+        else { val = mt.value; if (scaleK && val < 1000) val = val * 1000; }
+        var cur = null;
+        moneyN.facts.money.forEach(function (f) { if (!f.bare && cur === null) cur = f.currency; });
+        s.facts.money.push({ value: val, raw: s.text.slice(mt.span[0], mt.span[1]), span: mt.span, currency: cur || 'USD', bare: true });
+      } else {
+        if (mt.fiveBase !== null) return;
+        var cf = null;
+        countN.facts.counts.forEach(function (f) { if (!f.bare && !cf) cf = f; });
+        if (!cf) return;
+        s.facts.counts.push({ value: mt.value, raw: s.text.slice(mt.span[0], mt.span[1]), span: mt.span, noun: cf.noun, nounRaw: cf.nounRaw, bare: true });
+      }
+    });
     applyCorrections(meeting);
 
     /* -------- stance + history marking (pass #8) --------
@@ -812,9 +935,28 @@
     function offerSentence(s) {
       return /\?\s*$/.test(s.text) || /^\s*(how about|what about|can we|can you|could we|could you|shall we|maybe|perhaps|why not)\b/i.test(s.text);
     }
-    var REFUSAL_RE = /^\s*(no|nope|nah)\b|\b(can't|cannot|won't|not possible|too (?:much|high|expensive|steep|low)|doesn't work|not a chance)\b/i;
+    var REFUSAL_RE = /^\s*(no|nope|nah)\b|\b(can't|cannot|won't|not possible|too (?:much|high|expensive|steep|low)|doesn't work|not a chance|afraid not|i'?m afraid)\b/i;
     ['money', 'counts', 'dates'].forEach(function (kind) {
       meeting.forEach(function (s) { s.facts[kind].forEach(function (f) { if (factHistory(s, f)) f.history = true; }); });
+    });
+    /* Conditional values (pass #9): a value floated under a condition
+       ("If you sign for two years it would be $9,000") was never agreed
+       as the current term — it is a hypothesis, not a statement. The
+       mark needs BOTH halves of the conditional shape: an "if" in the
+       sentence and a conditional "would" before the value, so a plain
+       statement that merely opens with a condition on something else
+       ("If we proceed, the fee is $9,000") keeps its authority.
+       Conditional facts are treated like history for authority: they
+       never hold it, never rescue, never drop-flag — and a draft that
+       asserts the floated value as the agreed term is measured against
+       the standing value, exactly like a history quote. */
+    function factConditional(s, f) {
+      if (!/\bif\b/i.test(s.text)) return false; // an if somewhere in the sentence
+      var before = s.text.slice(0, f.span[0]);
+      return /\b(would|could|might)\b/i.test(before); // in conditional mood before the value
+    }
+    ['money', 'counts', 'dates'].forEach(function (kind) {
+      meeting.forEach(function (s) { s.facts[kind].forEach(function (f) { if (factConditional(s, f)) f.conditional = true; }); });
     });
     meeting.forEach(function (s) { s.facts.zeroFees.forEach(function (z) { if (factHistory(s, z)) z.history = true; }); });
 
@@ -844,7 +986,7 @@
     // charged fees indexed by fee noun, so a draft that denies a fee the
     // meeting charges can be caught in the reverse direction too
     var feeByKey = {};
-    meeting.forEach(function (s) { s.facts.money.forEach(function (f) { if (f.history) return; var k = draftFeeKey(s.text, f.span); if (k && !feeByKey[k]) feeByKey[k] = { s: s, f: f }; }); });
+    meeting.forEach(function (s) { s.facts.money.forEach(function (f) { if (f.history || f.conditional) return; var k = draftFeeKey(s.text, f.span); if (k && !feeByKey[k]) feeByKey[k] = { s: s, f: f }; }); });
     var tTermDays = {};
     meeting.forEach(function (s) { s.facts.terms.forEach(function (f) { tTermDays[f.days] = 1; }); });
     var agreedTotal = null;
@@ -852,7 +994,7 @@
       ds.facts.money.forEach(function (f) {
         if (!tMoneyVals[f.value]) return;
         meeting.forEach(function (ms) {
-          if (!ms.facts.money.some(function (x) { return Math.abs(x.value - f.value) < 0.005 && !x.history && !x.rejected; })) return;
+          if (!ms.facts.money.some(function (x) { return Math.abs(x.value - f.value) < 0.005 && !x.history && !x.rejected && !x.conditional; })) return;
           var sc = score(ds, ms) + (/\btotal\b/i.test(ms.text) ? 0.5 : 0);
           if (!agreedTotal || sc > agreedTotal.sc) agreedTotal = { s: ms, sc: sc };
         });
@@ -936,6 +1078,7 @@
           // A history value rescues only a draft that frames the value as
           // history itself (quoting the past is reference, not error).
           if (g.rejected) return;
+          if (g.conditional) return; // a floated value is not the meeting's truth either: it never rescues
           if (g.history) { if (!histHit) histHit = { s: ms, fi: gi, f: g }; return; }
           if (!hit) hit = { s: ms, fi: gi, f: g };
         });
@@ -1054,18 +1197,30 @@
     // discourse words — everything that is not an item's own name. ('fee'
     // is deliberately absent: a fee and a deposit are different items, and
     // mentions that name the fee must not chain onto a deposit.)
-    ['total', 'price', 'cost', 'charge', 'amount', 'quote', 'rate', 'pay', 'payment', 'bill', 'billing', 'budget', 'sum', 'worth', 'invoice', 'per', 'month', 'year', 'week', 'day', 'night', 'hour', 'quarter', 'seat', 'person', 'guest', 'head', 'ticket', 'dollar', 'euro', 'pound', 'say', 'ask', 'get', 'give', 'take', 'make', 'come', 'go', 'put', 'set', 'let', 'plus', 'also', 'confirm', 'mention', 'state', 'write', 'talk', 'need', 'want', 'agree', 'instead', 'rather', 'later', 'dont', 'cant', 'wont', 'isnt', 'arent', 'didnt', 'doesnt', 'couldnt', 'wouldnt', 'shouldnt', 'havent', 'hasnt', 'wasnt', 'werent', 'thats', 'move', 'shift', 'switch', 'change', 'reschedule', 'decide', 'choose', 'pick', 'postpone', 'delay', 'bring', 'settle', 'push', 'pull', 'extend'].forEach(function (w) { CHAIN_GENERIC[stem(w)] = 1; });
+    ['total', 'price', 'cost', 'charge', 'amount', 'quote', 'rate', 'pay', 'payment', 'bill', 'billing', 'budget', 'sum', 'worth', 'invoice', 'per', 'month', 'year', 'week', 'day', 'night', 'hour', 'quarter', 'seat', 'person', 'guest', 'head', 'ticket', 'dollar', 'euro', 'pound', 'say', 'ask', 'get', 'give', 'take', 'make', 'come', 'go', 'put', 'set', 'let', 'plus', 'also', 'confirm', 'mention', 'state', 'write', 'talk', 'need', 'want', 'agree', 'instead', 'rather', 'later', 'dont', 'cant', 'wont', 'isnt', 'arent', 'didnt', 'doesnt', 'couldnt', 'wouldnt', 'shouldnt', 'havent', 'hasnt', 'wasnt', 'werent', 'thats', 'move', 'shift', 'switch', 'change', 'reschedule', 'decide', 'choose', 'pick', 'postpone', 'delay', 'bring', 'settle', 'push', 'pull', 'extend', 'sign', 'work', 'better', 'meet', 'middle', 'tops', 'bump', 'booked', 'keep', 'afraid', 'understand', 'understood', 'launch', 'deal', 'problem', 'sounds', 'agreed', 'done', 'sure', 'okay', 'ok', 'yes', 'yeah'].forEach(function (w) { CHAIN_GENERIC[stem(w)] = 1; });
     var HISTORY_TOK = {};
     ['last', 'previous', 'previously', 'original', 'originally', 'earlier', 'prior', 'former', 'history', 'historical'].forEach(function (w) { HISTORY_TOK[stem(w)] = 1; });
     // closing / agreement language adjusts CONFIDENCE only (a superseded
     // flag is High when the operative sentence closes the matter); it never
     // selects which value is final — position does that (see resolveChains)
     var FINALITY_RE = /\b(okay|ok|deal|final|finally|agreed|agree|go with|locked|settled?|confirmed|sure|fine|works for me|sounds good)\b/i;
-    function chainDesc(text, span) {
+    function chainDesc(text, span, maskSpans) {
+      // other facts in the same sentence are masked out of the window:
+      // their surface forms (a second date's weekday name, a second
+      // amount's number words) are VALUES, not descriptors of this
+      // item — leaving them in splits chains that are really one
+      // negotiation ("Thursday is booked, let us keep Tuesday" must
+      // chain its two dates together, not veto on each other's names)
+      var src = text;
+      if (maskSpans && maskSpans.length) {
+        var chars = text.split('');
+        maskSpans.forEach(function (sp) { if (!sp) return; if (sp[0] === span[0] && sp[1] === span[1]) return; for (var ci = sp[0]; ci < sp[1] && ci < chars.length; ci++) chars[ci] = ' '; });
+        src = chars.join('');
+      }
       // a tight +-28 char window, trimmed to word boundaries so a cut word
       // never becomes a phantom descriptor
       var lo = Math.max(0, span[0] - 28), hi = Math.min(text.length, span[1] + 28);
-      var slice = text.slice(lo, hi);
+      var slice = src.slice(lo, hi);
       if (lo > 0) { var c1 = slice.indexOf(' '); if (c1 >= 0) slice = slice.slice(c1 + 1); }
       if (hi < text.length) { var c2 = slice.lastIndexOf(' '); if (c2 >= 0) slice = slice.slice(0, c2); }
       // apostrophes are stripped AFTER slicing (offsets stay valid):
@@ -1087,7 +1242,7 @@
       var firstM = text.match(/^\s*([A-Za-z']+)/);
       if (firstM) {
         var fw = stem(firstM[1].toLowerCase().replace(/^[-']+|[-']+$/g, ''));
-        var DISC_INIT = { actual: 1, well: 1, so: 1, okay: 1, ok: 1, now: 1, anyway: 1, sure: 1, fine: 1, great: 1, perfect: 1, right: 1, yes: 1, deal: 1, hmm: 1 };
+        var DISC_INIT = { actual: 1, well: 1, so: 1, okay: 1, ok: 1, now: 1, anyway: 1, sure: 1, fine: 1, great: 1, perfect: 1, right: 1, yes: 1, yeah: 1, deal: 1, hmm: 1 };
         var Q_INIT = { how: 1, what: 1, can: 1, could: 1, would: 1, shall: 1, should: 1, do: 1, does: 1, is: 1, are: 1, why: 1, when: 1, who: 1 };
         if (DISC_INIT[fw] || (/\?\s*$/.test(text) && Q_INIT[fw])) delete out[fw];
       }
@@ -1165,30 +1320,156 @@
       if (shared) return false;
       return Object.keys(ch[ch.length - 1].desc).length > 0;
     }
-    /* Positional resolution (pass #8, replacing phrase-gated selection):
-       within a chain, history mentions and rejected offers drop out of
-       authority; the operative value is the LATEST remaining mention —
-       offers included, because an unrejected, unreplaced offer stands
-       until something later replaces it. Closing/agreement language
-       never selects the value; it only sets a flag's confidence. When
-       the latest authority mention is an offer and an earlier statement
-       with a different value still stands, there is no honest final
-       value: the chain is UNCERTAIN, and drafts touching either value
-       get a Low flag showing both lines. */
+    /* ---- bare assent (pass #9): the closing EVENT ----
+       Real agreement usually carries no number: "Yeah." / "Fine by
+       me." / "Done." A sentence is a PURE ASSENT when it is nothing
+       but agreement — no facts of any value kind, and its whole text
+       is one of a small closed class of assent forms. Three traps are
+       built into the test:
+       - hedge: an assent word followed by qualification ("Yeah, but
+         that's too tight", "Okay, let me check with finance", "Sure,
+         I'll think about it") is NOT agreement — HEDGE_RE vetoes it
+         before the form test, and the exact-match form test vetoes
+         anything with content of its own;
+       - speaker: handled in resolveChains (the other side must say
+         yes; unlabelled closures are capped at Low);
+       - proximity: an assent only ever closes the offer whose
+         sentence it IMMEDIATELY follows (index + 1) — the same
+         discipline rejections already had. */
+    var ASSENT_SET = {};
+    ['yes', 'yeah', 'yep', 'yup', 'ok', 'okay', 'sure', 'fine', 'done', 'agreed', 'perfect', 'great', 'right', 'correct', 'absolutely', 'definitely', 'certainly', 'understood', 'confirmed', 'deal', 'works',
+     'works for me', 'fine by me', 'fine with me', 'sounds good', 'sounds great', 'no problem', 'that works', 'thats fine', 'thats ok', 'thats okay', 'thats good', 'thats right', 'all good', 'good for me', 'lets do it', 'i agree', 'we agree', 'sure thing', 'of course', 'will do', 'okay then', 'fine then', 'agreed then', 'yes please'
+    ].forEach(function (w) { ASSENT_SET[w] = 1; });
+    ['yeah', 'yes', 'ok', 'okay'].forEach(function (a) { ['sure', 'fine', 'ok', 'okay', 'done', 'agreed', 'great', 'perfect', 'right'].forEach(function (b) { ASSENT_SET[a + ' ' + b] = 1; }); });
+    var HEDGE_RE = /\bbut\b|\bhmm\b|\bmaybe\b|\bperhaps\b|\blet me\b|\bi'?ll\s+(ask|check|think)\b|\bthink about\b|\bnot sure\b|\bget back\b|\bneed to\s+(ask|check|confirm)\b|\bhave to\s+(ask|check|confirm)\b|\bcheck with\b|\bask\s+(with|first|around)\b|\bi wonder\b/i;
+    function assentInfo(s) {
+      if (!s || s.facts.money.length || s.facts.counts.length || s.facts.dates.length || s.facts.percent.length) return false;
+      var norm = s.text.replace(/’/g, "'");
+      if (HEDGE_RE.test(norm)) return false;
+      var t = norm.toLowerCase().replace(/['']/g, '').replace(/[!.,;:?]+/g, ' ').replace(/\s+/g, ' ').trim();
+      t = t.replace(/\s+(thanks|thank you)$/, '').trim();
+      return ASSENT_SET[t] === 1;
+    }
+    function supConfidence(fin) {
+      // an unlabelled bare-assent closure caps the flag at Low when
+      // the operative mention is an OFFER (the flag exists only
+      // because of that closure, and without speaker labels the
+      // "okay" might be the offerer's own); a labelled other-side
+      // closure is full finality evidence. A STATEMENT operative
+      // never needed the assent to stand, so its own finality words
+      // decide, exactly as before.
+      if (fin.assentCapped && fin.offer) return 'Low';
+      if (fin.assentClosed && !fin.assentCapped) return 'High';
+      return FINALITY_RE.test(fin.s.text) ? 'High' : 'Low';
+    }
+    /* Positional resolution (pass #8, extended pass #9):
+       within a chain, history mentions, conditional mentions and
+       rejected offers drop out of authority; the operative value is
+       the LATEST remaining mention — offers included, because an
+       unrejected, unreplaced offer stands until something later
+       replaces it. An offer still pending at the end of the chain is
+       a PENDING OFFER: a bare assent in the very next sentence closes
+       it (that offer becomes the final value, even though the assent
+       repeats no number); without a close there is no honest final
+       value — the chain is UNCERTAIN and drafts touching either value
+       get a Low flag showing both lines. Agreement language never
+       selects the value; it closes offers and sets confidence. */
     function resolveChains(chains, kind, differs, supMap, uncMap, chainOf, restates) {
       chains.forEach(function (ch) {
         ch.forEach(function (e) { chainOf[entryKey(e)] = ch; });
-        ch.forEach(function (e) {
-          if (e.history || !e.offer) return;
-          var nxt = meeting[e.s.index + 1];
-          if (!nxt || !REFUSAL_RE.test(nxt.text)) return;
-          if (nxt.facts[kind].length) return; // a refusal carrying its own value is a counter, not a cancellation
-          e.rejected = true; e.f.rejected = true;
+      });
+      var allEntries = [];
+      chains.forEach(function (ch) { ch.forEach(function (e) { allEntries.push(e); }); });
+      function entryOfFact(fact) {
+        for (var i = 0; i < allEntries.length; i++) if (allEntries[i].f === fact) return allEntries[i];
+        return null;
+      }
+      function moveInto(entry, target) {
+        if (!entry || !target || chainOf[entryKey(entry)] === target) return;
+        var from = chainOf[entryKey(entry)];
+        if (from) { var ix = from.indexOf(entry); if (ix >= 0) from.splice(ix, 1); }
+        var pos = target.length;
+        for (var i = 0; i < target.length; i++) {
+          var g = target[i];
+          if (g.s.index > entry.s.index || (g.s.index === entry.s.index && g.f.span[0] > entry.f.span[0])) { pos = i; break; }
+        }
+        target.splice(pos, 0, entry);
+        chainOf[entryKey(entry)] = target;
+      }
+      // rejection marking (proximity discipline: only the sentence
+      // immediately after the offer can refuse it)
+      allEntries.forEach(function (e) {
+        if (e.history || e.conditional || !e.offer) return;
+        var nxt = meeting[e.s.index + 1];
+        if (!nxt || !REFUSAL_RE.test(nxt.text)) return;
+        if (assentInfo(nxt)) return; // "No problem." is an acceptance wearing a refusal's clothes
+        // a refusal sentence that restates the offer's OWN value is a
+        // self-correction or acceptance of it, not a cancellation;
+        // any other refusal cancels the offer — including one that
+        // carries a counter-value (the counter stands as its own
+        // entry; the offer is still refused)
+        if (nxt.facts[kind].some(function (g) { return !differs(g, e.f); })) return;
+        e.rejected = true; e.f.rejected = true;
+      });
+      /* Answer-sentence bridges. Descriptor grouping can strand the
+         sentence that ANSWERS an offer in a chain of its own (its
+         vocabulary is refusal speech, not the item's), and the values
+         it carries then resolve in the wrong negotiation. The answer
+         belongs to the offer it answers — positionally, not by
+         wording:
+         A) counter bridge — a refusal sentence carrying exactly one
+            value of this kind: that value is the counter, and joins
+            the refused offer's chain;
+         B) reversal bridge — the answering sentence names the offered
+            value AND restates a value the offer's chain already holds
+            ("Thursday is booked, let us keep Tuesday"): the offer is
+            refused and both mentions join its chain, so the restated
+            (kept) value can become operative by position. */
+      allEntries.forEach(function (e) {
+        if (e.history || e.conditional || !e.offer) return;
+        var ch = chainOf[entryKey(e)], nxt = meeting[e.s.index + 1];
+        if (!ch || !nxt) return;
+        var nFacts = nxt.facts[kind] || [];
+        if (e.rejected && nFacts.length === 1 && differs(nFacts[0], e.f)) {
+          moveInto(entryOfFact(nFacts[0]), ch);
+          return;
+        }
+        var namesOffer = nFacts.some(function (g) { return !differs(g, e.f); });
+        if (!namesOffer) return;
+        var kept = nFacts.filter(function (g) {
+          return differs(g, e.f) && ch.some(function (g2) { return g2.s.index < nxt.index && !differs(g2.f, g); });
         });
-        var authority = ch.filter(function (e) { return !e.history && !e.rejected; });
-        if (authority.length < 2) return;
+        if (!kept.length) return;
+        e.rejected = true; e.f.rejected = true;
+        nFacts.forEach(function (g) {
+          var ge = entryOfFact(g);
+          moveInto(ge, ch);
+          // the answer sentence's own mention of the offered value is
+          // the dismissal itself ("Thursday is booked") — it carries
+          // no authority either, and leaving it live would make the
+          // sentence read as a summary that keeps both values alive
+          if (ge && ge !== e && !differs(g, e.f)) { ge.rejected = true; ge.f.rejected = true; }
+        });
+      });
+      chains.forEach(function (ch) {
+        var authority = ch.filter(function (e) { return !e.history && !e.conditional && !e.rejected; });
+        if (authority.length < 1) return;
         var operative = authority[authority.length - 1];
-        if (operative.offer) {
+        // bare-assent closing: the sentence immediately after the
+        // operative mention is a pure assent. With speaker labels on
+        // both sides it must come from a DIFFERENT speaker than the
+        // operative mention's (the offerer saying "okay" to their own
+        // proposal closes nothing); with a label missing on either
+        // side it still closes, but capped (see supConfidence).
+        var nxtS = meeting[operative.s.index + 1];
+        if (nxtS && assentInfo(nxtS)) {
+          var spA = operative.s.speaker || null, spB = nxtS.speaker || null;
+          if (!(spA && spB && spA === spB)) {
+            operative.assentClosed = true;
+            operative.assentCapped = !(spA && spB);
+          }
+        }
+        if (operative.offer && !operative.assentClosed) {
           var standing = null;
           authority.forEach(function (e) { if (!e.offer && differs(e.f, operative.f)) standing = e; });
           if (standing) {
@@ -1197,6 +1478,12 @@
             });
             uncMap[entryKey(standing)] = { standing: standing, offer: operative };
             uncMap[entryKey(operative)] = { standing: standing, offer: operative };
+            // a refused value is not one of the two live candidates,
+            // but a draft asserting it is still not all-clear: it gets
+            // the same Low uncertainty display
+            ch.forEach(function (e) {
+              if (e.rejected && differs(e.f, operative.f) && differs(e.f, standing.f)) uncMap[entryKey(e)] = { standing: standing, offer: operative };
+            });
             return;
           }
         }
@@ -1208,10 +1495,19 @@
           if (restates && restates(e, operative)) return;
           supMap[entryKey(e)] = operative;
         });
+        // a refused offer is settled business: a draft that asserts
+        // the refused value is wrong against the value the meeting
+        // actually settled on (never against a still-pending offer —
+        // there is no settled value to quote then)
+        if (!(operative.offer && !operative.assentClosed)) {
+          ch.forEach(function (e) {
+            if (e.rejected && differs(e.f, operative.f)) supMap[entryKey(e)] = operative;
+          });
+        }
       });
     }
     var moneyEntries = [];
-    meeting.forEach(function (s) { s.facts.money.forEach(function (f, fi) { moneyEntries.push({ s: s, f: f, fi: fi, desc: chainDesc(s.text, f.span), offer: offerSentence(s), history: !!f.history }); }); });
+    meeting.forEach(function (s) { s.facts.money.forEach(function (f, fi) { moneyEntries.push({ s: s, f: f, fi: fi, desc: chainDesc(s.text, f.span, allFactSpans(s)), offer: offerSentence(s), history: !!f.history, conditional: !!f.conditional }); }); });
     var supersededMoney = {};   // entryKey -> the operative entry of its chain
     var uncertainMoney = {};    // entryKey -> { standing, offer } for chains with no honest final value
     var chainOfMoney = {};
@@ -1219,9 +1515,9 @@
     var countEntriesByNoun = {};
     meeting.forEach(function (s) {
       s.facts.counts.forEach(function (f, fi) {
-        var desc = chainDesc(s.text, f.span);
+        var desc = chainDesc(s.text, f.span, allFactSpans(s));
         delete desc[f.noun]; delete desc[stem(f.noun)];
-        (countEntriesByNoun[f.noun] = countEntriesByNoun[f.noun] || []).push({ s: s, f: f, fi: fi, desc: desc, offer: offerSentence(s), history: !!f.history });
+        (countEntriesByNoun[f.noun] = countEntriesByNoun[f.noun] || []).push({ s: s, f: f, fi: fi, desc: desc, offer: offerSentence(s), history: !!f.history, conditional: !!f.conditional });
       });
     });
     var supersededCounts = {};
@@ -1231,14 +1527,14 @@
       resolveChains(buildChains(countEntriesByNoun[noun]), 'counts', function (a, b) { return Math.abs(a.value - b.value) >= 0.005; }, supersededCounts, uncertainCounts, chainOfCounts, function (e, op) { return restatesValue(op.s, op.f, e.f.value); });
     });
     var dateEntries = [];
-    meeting.forEach(function (s) { s.facts.dates.forEach(function (f, fi) { dateEntries.push({ s: s, f: f, fi: fi, desc: chainDesc(s.text, f.span), offer: offerSentence(s), history: !!f.history }); }); });
+    meeting.forEach(function (s) { s.facts.dates.forEach(function (f, fi) { dateEntries.push({ s: s, f: f, fi: fi, desc: chainDesc(s.text, f.span, allFactSpans(s)), offer: offerSentence(s), history: !!f.history, conditional: !!f.conditional }); }); });
     var supersededDates = {};
     var uncertainDates = {};
     var chainOfDates = {};
     resolveChains(buildChains(dateEntries), 'dates', function (a, b) { return dateConflict(a, b); }, supersededDates, uncertainDates, chainOfDates, function (e, op) { return op.s.facts.dates.some(function (g) { return g !== op.f && sameDate(g, e.f); }); });
     var supersededCited = {};   // final facts a supersession flag already explains
     function moneySuperseded(mf, d) {
-      var dDesc = chainDesc(d.text, mf.span), found = null;
+      var dDesc = chainDesc(d.text, mf.span, allFactSpans(d)), found = null;
       moneyEntries.forEach(function (e) {
         if (found) return;
         var fin = supersededMoney[e.s.index + ':' + e.fi];
@@ -1252,7 +1548,7 @@
         if (chainContradicts(dDesc, e, chainOfMoney)) return;
         var confirmed = moneyEntries.some(function (g) {
           if (supersededMoney[g.s.index + ':' + g.fi]) return false;
-          if (g.history || g.rejected) return false;
+          if (g.history || g.rejected || g.conditional) return false;
           if (Math.abs(g.f.value - mf.value) >= 0.005) return false;
           if (mf.currency && g.f.currency && mf.currency !== g.f.currency) return false;
           if (mf.period && g.f.period && mf.period !== g.f.period) return false;
@@ -1263,7 +1559,7 @@
       return found;
     }
     function moneyUncertain(mf, d) {
-      var dDesc = chainDesc(d.text, mf.span), found = null;
+      var dDesc = chainDesc(d.text, mf.span, allFactSpans(d)), found = null;
       moneyEntries.forEach(function (e) {
         if (found) return;
         var unc = uncertainMoney[entryKey(e)];
@@ -1277,7 +1573,7 @@
       return found;
     }
     function countSuperseded(cf, d) {
-      var dDesc = chainDesc(d.text, cf.span);
+      var dDesc = chainDesc(d.text, cf.span, allFactSpans(d));
       delete dDesc[cf.noun]; delete dDesc[stem(cf.noun)];
       var entries = countEntriesByNoun[cf.noun] || [], found = null;
       entries.forEach(function (e) {
@@ -1290,7 +1586,7 @@
         if (chainContradicts(dDesc, e, chainOfCounts)) return;
         var confirmed = entries.some(function (g) {
           if (supersededCounts[g.s.index + ':' + g.fi]) return false;
-          if (g.history || g.rejected) return false;
+          if (g.history || g.rejected || g.conditional) return false;
           if (Math.abs(g.f.value - cf.value) >= 0.005) return false;
           return descCompatible(dDesc, g.desc);
         });
@@ -1299,7 +1595,7 @@
       return found;
     }
     function countUncertain(cf, d) {
-      var dDesc = chainDesc(d.text, cf.span);
+      var dDesc = chainDesc(d.text, cf.span, allFactSpans(d));
       delete dDesc[cf.noun]; delete dDesc[stem(cf.noun)];
       var entries = countEntriesByNoun[cf.noun] || [], found = null;
       entries.forEach(function (e) {
@@ -1313,19 +1609,29 @@
       return found;
     }
     function dateSuperseded(dtf, d) {
-      var dDesc = chainDesc(d.text, dtf.span), found = null;
+      var dDesc = chainDesc(d.text, dtf.span, allFactSpans(d)), found = null;
       dateEntries.forEach(function (e) {
         if (found) return;
         var fin = supersededDates[e.s.index + ':' + e.fi];
         if (!fin) return;
         if (!sameDate(e.f, dtf)) return;
         if (!dateConflict(dtf, fin.f) || dateConsistent(fin.f, dtf)) return;
-        if (fin.s.facts.dates.some(function (g) { return g !== fin.f && sameDate(g, e.f); })) return; // the final sentence restates both dates: a summary, not a replacement
+        // the final sentence restating both dates is a summary keeping
+        // both alive, not a replacement — UNLESS the co-mentioned date
+        // is itself superseded by this same operative entry: then the
+        // sentence names the old value only to dismiss it ("Thursday
+        // is booked, let us keep Tuesday"), which is a refusal, not a
+        // summary
+        if (fin.s.facts.dates.some(function (g) {
+          if (g === fin.f || !sameDate(g, e.f)) return false;
+          var gFin = supersededDates[fin.s.index + ':' + fin.s.facts.dates.indexOf(g)];
+          return gFin !== fin;
+        })) return;
         if (refOnlySkip(dDesc, e.desc, fin.desc)) return;
         if (chainContradicts(dDesc, e, chainOfDates)) return;
         var confirmed = dateEntries.some(function (g) {
           if (supersededDates[g.s.index + ':' + g.fi]) return false;
-          if (g.history || g.rejected) return false;
+          if (g.history || g.rejected || g.conditional) return false;
           if (!sameDate(g.f, dtf) && !dateConsistent(g.f, dtf)) return false;
           return descCompatible(dDesc, g.desc);
         });
@@ -1334,7 +1640,7 @@
       return found;
     }
     function dateUncertain(dtf, d) {
-      var dDesc = chainDesc(d.text, dtf.span), found = null;
+      var dDesc = chainDesc(d.text, dtf.span, allFactSpans(d)), found = null;
       dateEntries.forEach(function (e) {
         if (found) return;
         var unc = uncertainDates[entryKey(e)];
@@ -1382,7 +1688,7 @@
             var supFix = (mf.period && sup.f.period && mf.period !== sup.f.period && ANNUAL_FACTOR[mf.period] && ANNUAL_FACTOR[sup.f.period])
               ? fixNumFor(d.text, mf.span, mf.raw, { value: sup.f.value * ANNUAL_FACTOR[sup.f.period] / ANNUAL_FACTOR[mf.period], currency: sup.f.currency })
               : fixNumFor(d.text, mf.span, mf.raw, sup.f);
-            addFlag({ type: 'Amount', beta: false, confidence: FINALITY_RE.test(sup.s.text) ? 'High' : 'Low', superseded: true, draftIndex: d.index, draftSentence: d.text, draftSpan: mf.span, draftFactText: mf.raw, meetingSentence: sup.s.text, meetingSpan: sup.f.span, meetingFactText: sup.f.raw, timestamp: sup.s.timestamp, fix: supFix });
+            addFlag({ type: 'Amount', beta: false, confidence: supConfidence(sup), superseded: true, draftIndex: d.index, draftSentence: d.text, draftSpan: mf.span, draftFactText: mf.raw, meetingSentence: sup.s.text, meetingSpan: sup.f.span, meetingFactText: sup.f.raw, timestamp: sup.s.timestamp, fix: supFix });
             supersededCited[sup.s.index + ':' + sup.fi] = 1;
             return;
           }
@@ -1404,7 +1710,7 @@
           var options = [], totalFacts = 0;
           cands.forEach(function (c) {
             c.s.facts.money.forEach(function (fact, fi) {
-              if (fact.history || fact.rejected) return; // no current authority: never a counterpart
+              if (fact.history || fact.rejected || fact.conditional) return; // no current authority: never a counterpart
               totalFacts++;
               if (usedMF[c.s.index + ':' + fi]) return;
               options.push({ s: c.s, sc: c.sc, tier: c.tier, fact: fact, fi: fi, desc: descOverlap(d, mf, c.s, fact), exact: (Math.abs(fact.value - mf.value) < 0.005 && !(mf.currency && fact.currency && mf.currency !== fact.currency)) ? 1 : 0 });
@@ -1468,7 +1774,7 @@
           // different number — the last count is the operative one
           var csup = countSuperseded(cf, d);
           if (csup) {
-            addFlag({ type: 'Quantity', beta: false, confidence: FINALITY_RE.test(csup.s.text) ? 'High' : 'Low', superseded: true, draftIndex: d.index, draftSentence: d.text, draftSpan: cf.span, draftFactText: cf.raw + ' ' + (cf.nounRaw || cf.noun), meetingSentence: csup.s.text, meetingSpan: csup.f.span, meetingFactText: csup.f.raw + ' ' + (csup.f.nounRaw || csup.f.noun), timestamp: csup.s.timestamp, fix: fixNumFor(d.text, cf.span, cf.raw, csup.f) });
+            addFlag({ type: 'Quantity', beta: false, confidence: supConfidence(csup), superseded: true, draftIndex: d.index, draftSentence: d.text, draftSpan: cf.span, draftFactText: cf.raw + ' ' + (cf.nounRaw || cf.noun), meetingSentence: csup.s.text, meetingSpan: csup.f.span, meetingFactText: csup.f.raw + ' ' + (csup.f.nounRaw || csup.f.noun), timestamp: csup.s.timestamp, fix: fixNumFor(d.text, cf.span, cf.raw, csup.f) });
             return;
           }
           // uncertain chain (see money): Low flag, both lines shown
@@ -1481,7 +1787,7 @@
           // rejected counts are not counterparts (a history-framed draft
           // may still quote the past — reference, not assertion)
           var framed = draftHistoryFramed(d, cf.span);
-          var usable = function (x) { return x.noun === cf.noun && (framed || (!x.history && !x.rejected)); };
+          var usable = function (x) { return x.noun === cf.noun && (framed || (!x.history && !x.rejected && !x.conditional)); };
           var cands = candsFor('counts', cf.span, usable);
           cands = cands.filter(function (c) { return c.tier !== 0; }); // never compare across different identifiers
           for (var cix = 0; cix < cands.length; cix++) {
@@ -1502,7 +1808,7 @@
             // with the venue's own 200 by name, and the dinner's 120
             // (same noun, different item) must not rescue it
             var saidElsewhere = (countEntriesByNoun[cf.noun] || []).some(function (g) {
-              return !supersededCounts[g.s.index + ':' + g.fi] && !g.history && !g.rejected && Math.abs(g.f.value - cf.value) < 0.005;
+              return !supersededCounts[g.s.index + ':' + g.fi] && !g.history && !g.rejected && !g.conditional && Math.abs(g.f.value - cf.value) < 0.005;
             });
             if (saidElsewhere) {
               // the draft's value IS this candidate's own chain-final
@@ -1571,7 +1877,7 @@
           // meeting — the last date is the operative one
           var dsup = dateSuperseded(dtf, d);
           if (dsup) {
-            addFlag({ type: 'Date', beta: false, confidence: FINALITY_RE.test(dsup.s.text) ? 'High' : 'Low', superseded: true, draftIndex: d.index, draftSentence: d.text, draftSpan: dtf.span, draftFactText: dtf.raw, meetingSentence: dsup.s.text, meetingSpan: dsup.f.span, meetingFactText: dsup.f.raw, timestamp: dsup.s.timestamp, fix: fixFor(d.text, dtf.span, dsup.f.raw) });
+            addFlag({ type: 'Date', beta: false, confidence: supConfidence(dsup), superseded: true, draftIndex: d.index, draftSentence: d.text, draftSpan: dtf.span, draftFactText: dtf.raw, meetingSentence: dsup.s.text, meetingSpan: dsup.f.span, meetingFactText: dsup.f.raw, timestamp: dsup.s.timestamp, fix: fixFor(d.text, dtf.span, dsup.f.raw) });
             return;
           }
           // uncertain chain (see money): Low flag, both lines shown
@@ -1583,7 +1889,7 @@
           // a draft that frames the date as history is quoting the past,
           // not asserting it as current — reference, not error
           if (draftHistoryFramed(d, dtf.span)) return;
-          var dDesc = chainDesc(d.text, dtf.span);
+          var dDesc = chainDesc(d.text, dtf.span, allFactSpans(d));
           var cands = candsFor('dates', dtf.span);
           var firstClash = null, examined = 0;
           for (var ci = 0; ci < cands.length; ci++) {
@@ -1592,7 +1898,7 @@
             // rejected and superseded dates are not its current truth
             var csD = cands[ci].s;
             var darr = csD.facts.dates.filter(function (x, xi) {
-              return !x.history && !x.rejected && !supersededDates[csD.index + ':' + xi];
+              return !x.history && !x.rejected && !x.conditional && !supersededDates[csD.index + ':' + xi];
             });
             if (!darr.length) continue;
             examined++;
@@ -1624,13 +1930,13 @@
           // and the draft contradicts it — a moved date whose surviving
           // lines share no words with the draft is still a moved date
           var opDates = [];
-          dateEntries.forEach(function (e) { if (!e.history && !e.rejected && !supersededDates[entryKey(e)]) opDates.push(e); });
+          dateEntries.forEach(function (e) { if (!e.history && !e.rejected && !e.conditional && !supersededDates[entryKey(e)]) opDates.push(e); });
           var distinctOp = [];
           opDates.forEach(function (e) { if (!distinctOp.some(function (g) { return sameDate(g.f, e.f); })) distinctOp.push(e); });
           if (distinctOp.length === 1 && opDates.length) {
             var opE = opDates[opDates.length - 1];
             if (dateConflict(dtf, opE.f) && !dateConsistent(opE.f, dtf)) {
-              addFlag({ type: 'Date', beta: false, confidence: FINALITY_RE.test(opE.s.text) ? 'High' : 'Low', draftIndex: d.index, draftSentence: d.text, draftSpan: dtf.span, draftFactText: dtf.raw, meetingSentence: opE.s.text, meetingSpan: opE.f.span, meetingFactText: opE.f.raw, timestamp: opE.s.timestamp, fix: fixFor(d.text, dtf.span, opE.f.raw) });
+              addFlag({ type: 'Date', beta: false, confidence: supConfidence(opE), draftIndex: d.index, draftSentence: d.text, draftSpan: dtf.span, draftFactText: dtf.raw, meetingSentence: opE.s.text, meetingSpan: opE.f.span, meetingFactText: opE.f.raw, timestamp: opE.s.timestamp, fix: fixFor(d.text, dtf.span, opE.f.raw) });
             }
           }
         });
@@ -1722,7 +2028,7 @@
       ms.facts.money.forEach(function (f, fi) {
         if (accountedMF[ms.index + ':' + fi]) return;
         if (supersededCited[ms.index + ':' + fi]) return; // a supersession flag already explains this fact's absence
-        if (f.history || f.rejected) return; // the past, and refused offers, are not dropped commitments
+        if (f.history || f.rejected || f.conditional) return; // the past, refused offers and floated values are not dropped commitments
         var supFinT1 = supersededMoney[ms.index + ':' + fi];
         if (supFinT1 && draftValPresent(supFinT1.f.value)) return; // replaced later, and the draft carries the final value: explained, not missing
         if (draftValPresent(f.value)) return;
@@ -1758,7 +2064,7 @@
       if (!turnAnchor && !Object.keys(anchorFeeKeys).length && !inclClaims.length) return;
       ms.facts.money.forEach(function (f, fi) {
         if (supersededCited[ms.index + ':' + fi]) return;
-        if (f.history || f.rejected) return; // the past, and refused offers, are not dropped commitments
+        if (f.history || f.rejected || f.conditional) return; // the past, refused offers and floated values are not dropped commitments
         var supFinT2 = supersededMoney[ms.index + ':' + fi];
         if (supFinT2 && draftValPresent(supFinT2.f.value)) return; // replaced later, and the draft carries the final value: explained, not missing
         if (draftValPresent(f.value)) return;
@@ -1785,8 +2091,8 @@
     meeting.forEach(function (ms) {
       if (!ms.facts.promise) return;
       var carried = null;
-      ms.facts.money.forEach(function (f, fi) { if (!f.history && !f.rejected && !supersededMoney[ms.index + ':' + fi] && !draftMoneyVals[f.value]) carried = { kind: 'money', f: f }; });
-      if (!carried) ms.facts.dates.forEach(function (f, fi) { var k = (f.month || '') + '-' + (f.day || '') + '-' + (f.weekday == null ? '' : f.weekday) + '-' + (f.week || ''); if (!f.history && !f.rejected && !supersededDates[ms.index + ':' + fi] && !draftDateKeys[k]) carried = { kind: 'date', f: f }; });
+      ms.facts.money.forEach(function (f, fi) { if (!f.history && !f.rejected && !f.conditional && !supersededMoney[ms.index + ':' + fi] && !draftMoneyVals[f.value]) carried = { kind: 'money', f: f }; });
+      if (!carried) ms.facts.dates.forEach(function (f, fi) { var k = (f.month || '') + '-' + (f.day || '') + '-' + (f.weekday == null ? '' : f.weekday) + '-' + (f.week || ''); if (!f.history && !f.rejected && !f.conditional && !supersededDates[ms.index + ':' + fi] && !draftDateKeys[k]) carried = { kind: 'date', f: f }; });
       if (!carried) return;
       // is any draft sentence about this meeting sentence?
       var bestD = 0, bestDS = null;
