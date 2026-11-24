@@ -260,7 +260,7 @@ function wireInviteForm(){
 <script>if(location.hash==="#invite"){var _b=document.querySelector("[data-open=\"invite\"]");if(_b)_b.click();}</script>
 <script data-goatcounter="https://proofaro.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
 <script>document.querySelectorAll("[data-back]").forEach(function(a){a.addEventListener("click",function(e){try{var r=document.referrer;if(window.history.length>1&&r&&new URL(r).origin===location.origin){e.preventDefault();history.back();}}catch(_){}});});</script>
-<script src="assets/checker.js?v=752498d"></script>
+<script src="assets/checker.js?v=8e1372a"></script>
 <script>
 (function(){
 "use strict";
@@ -314,7 +314,10 @@ function cardHTML(f,i){
  if(f.superseded){
   lines+='<p class="flagLine"><span class="flagLabel">Changed later in the meeting:</span> final was '+esc(f.meetingFactText||'')+(f.timestamp?' <span class="ts">('+esc(f.timestamp)+')</span>':'')+'</p>';
  }
- if(f.meetingSentence){
+ if(f.uncertain&&f.earlierSentence){
+  lines+='<p class="flagLine"><span class="flagLabel">Earlier in the meeting:</span> '+marked(f.earlierSentence,f.earlierSpan,'mkM')+(f.earlierTimestamp?' <span class="ts">('+esc(f.earlierTimestamp)+')</span>':'')+'</p>';
+  lines+='<p class="flagLine"><span class="flagLabel">Later in the meeting:</span> '+marked(f.meetingSentence,f.meetingSpan,'mkM')+(f.timestamp?' <span class="ts">('+esc(f.timestamp)+')</span>':'')+'</p>';
+ }else if(f.meetingSentence){
   lines+='<p class="flagLine"><span class="flagLabel">Meeting said:</span> '+marked(f.meetingSentence,f.meetingSpan,'mkM')+(f.timestamp?' <span class="ts">('+esc(f.timestamp)+')</span>':'')+'</p>';
  }else{
   lines+='<p class="flagLine"><span class="flagLabel">Meeting said:</span> nothing in the meeting record mentions this.</p>';
@@ -355,7 +358,8 @@ function buildPrint(res,flags){
   if(f.draftSentence)h+='<p>Draft says: '+esc(f.draftSentence)+'</p>';
   if(f.dropped)h+='<p>Missing from your draft: this was said in the meeting but never made it into the draft.</p>';
   if(f.superseded)h+='<p>Changed later in the meeting: final was '+esc(f.meetingFactText||'')+(f.timestamp?' ('+esc(f.timestamp)+')':'')+'</p>';
-  if(f.meetingSentence)h+='<p>Meeting said: '+esc(f.meetingSentence)+(f.timestamp?' ('+esc(f.timestamp)+')':'')+'</p>';
+  if(f.uncertain&&f.earlierSentence){h+='<p>Earlier in the meeting: '+esc(f.earlierSentence)+(f.earlierTimestamp?' ('+esc(f.earlierTimestamp)+')':'')+'</p><p>Later in the meeting: '+esc(f.meetingSentence)+(f.timestamp?' ('+esc(f.timestamp)+')':'')+'</p>';}
+  else if(f.meetingSentence)h+='<p>Meeting said: '+esc(f.meetingSentence)+(f.timestamp?' ('+esc(f.timestamp)+')':'')+'</p>';
   else if(!f.dropped)h+='<p>Meeting said: nothing in the meeting record mentions this.</p>';
   h+='</div>';
  });
