@@ -260,7 +260,7 @@ function wireInviteForm(){
 <script>if(location.hash==="#invite"){var _b=document.querySelector("[data-open=\"invite\"]");if(_b)_b.click();}</script>
 <script data-goatcounter="https://proofaro.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
 <script>document.querySelectorAll("[data-back]").forEach(function(a){a.addEventListener("click",function(e){try{var r=document.referrer;if(window.history.length>1&&r&&new URL(r).origin===location.origin){e.preventDefault();history.back();}}catch(_){}});});</script>
-<script src="assets/checker.js?v=ac1dca4"></script>
+<script src="assets/checker.js?v=752498d"></script>
 <script>
 (function(){
 "use strict";
@@ -311,6 +311,9 @@ function cardHTML(f,i){
  }else if(f.draftSentence){
   lines+='<p class="flagLine"><span class="flagLabel">Draft says:</span> '+marked(f.draftSentence,f.draftSpan,'')+'</p>';
  }
+ if(f.superseded){
+  lines+='<p class="flagLine"><span class="flagLabel">Changed later in the meeting:</span> final was '+esc(f.meetingFactText||'')+(f.timestamp?' <span class="ts">('+esc(f.timestamp)+')</span>':'')+'</p>';
+ }
  if(f.meetingSentence){
   lines+='<p class="flagLine"><span class="flagLabel">Meeting said:</span> '+marked(f.meetingSentence,f.meetingSpan,'mkM')+(f.timestamp?' <span class="ts">('+esc(f.timestamp)+')</span>':'')+'</p>';
  }else{
@@ -351,6 +354,7 @@ function buildPrint(res,flags){
   h+='<div class="prFlag"><p><b>'+TYPE_LABEL[f.type]+(f.beta?' · Beta':' · '+f.confidence+' confidence')+'</b></p>';
   if(f.draftSentence)h+='<p>Draft says: '+esc(f.draftSentence)+'</p>';
   if(f.dropped)h+='<p>Missing from your draft: this was said in the meeting but never made it into the draft.</p>';
+  if(f.superseded)h+='<p>Changed later in the meeting: final was '+esc(f.meetingFactText||'')+(f.timestamp?' ('+esc(f.timestamp)+')':'')+'</p>';
   if(f.meetingSentence)h+='<p>Meeting said: '+esc(f.meetingSentence)+(f.timestamp?' ('+esc(f.timestamp)+')':'')+'</p>';
   else if(!f.dropped)h+='<p>Meeting said: nothing in the meeting record mentions this.</p>';
   h+='</div>';
