@@ -283,9 +283,14 @@
   var SPK_RE = /^([A-Z][A-Za-z.'-]+(?: [A-Z][A-Za-z.'-]+){0,2})\s*:\s+/;
   function parseLines(text) {
     var lines = String(text || '').split(/\r?\n/), out = [];
+    // Otter / Zoom TXT layout: a bare "Name 0:25" header line, its words on
+    // the lines after. The header's speaker + timestamp carry onto those
+    // lines until the block ends (a blank line, or a line with its own
+    // speaker/time). Without this, pasted TXT exports lose their times.
+    var pending = null;
     for (var i = 0; i < lines.length; i++) {
       var line = lines[i].trim();
-      if (!line) continue;
+      if (!line) { pending = null; continue; }
       // pasted subtitle text: header / timing / cue-number lines are not sentences
       if (/^WEBVTT/i.test(line) || /^NOTE\b/.test(line) || /^STYLE\b/.test(line) || /^REGION\b/.test(line)) continue;
       if (/-->/.test(line) && /\d{1,2}:\d{2}/.test(line)) continue;
@@ -307,6 +312,13 @@
       if (!ts && speaker && /\d/.test(speaker)) { speaker = null; }
       if (!speaker && vname && !NAME_STOP[vname]) speaker = vname;
       var sents = splitSentences(line);
+      if (!sents.length) {
+        // a bare name+time header line: carry it forward to its text lines
+        if (speaker && ts) pending = { speaker: speaker, ts: ts };
+        continue;
+      }
+      if (pending && !speaker && !ts) { speaker = pending.speaker; ts = pending.ts; }
+      else if (speaker || ts) pending = null;
       for (var j = 0; j < sents.length; j++) out.push({ text: sents[j], timestamp: ts, speaker: speaker });
     }
     return mergeTurns(out);
