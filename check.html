@@ -373,7 +373,7 @@ results.addEventListener('click',function(e){
  if(ds){
   var card=ds.closest('[data-card]');
   gc('not_a_mismatch');
-  if(card){card.remove();visibleCount--;dismissedFlags.add(+ds.dataset.dismiss);if(lastResult)buildPrint(lastResult,visibleFlags());var s=document.getElementById('resultsSummary');if(s)s.textContent=visibleCount+(visibleCount===1?' mismatch':' mismatches')+' found.';}
+  if(card){card.remove();visibleCount--;dismissedFlags.add(+ds.dataset.dismiss);if(lastResult)buildPrint(lastResult,visibleFlags());var s=document.getElementById('resultsSummary');if(s)s.textContent=visibleCount===0?'No mismatches found.':visibleCount+(visibleCount===1?' mismatch':' mismatches')+' found.';}
  }
 });
 document.getElementById('ctaInvite').addEventListener('click',function(){gc('invite_clicked');});
