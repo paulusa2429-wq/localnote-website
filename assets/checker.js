@@ -68,6 +68,183 @@
     return n;
   }
 
+  /* ---------------- value formatting: a Copy fix adopts the DRAFT's format ---------------- */
+  var CUR_SYM = { USD: '$', EUR: '€', GBP: '£' };
+  var CUR_WORD = { USD: 'dollars', EUR: 'euros', GBP: 'pounds' };
+  function fmtGrouped(v, dec) {
+    var neg = v < 0; if (neg) v = -v;
+    var str = dec ? v.toFixed(dec) : String(Math.round(v * 100) / 100);
+    var parts = str.split('.');
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return (neg ? '-' : '') + parts.join('.');
+  }
+  var NW_ONES = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+  var NW_TENS = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+  function numWords(v) {
+    if (v === 0) return 'zero';
+    var neg = v < 0; if (neg) v = -v;
+    function under1000(n) {
+      var out = [];
+      if (n >= 100) { out.push(NW_ONES[Math.floor(n / 100)] + ' hundred'); n %= 100; }
+      if (n >= 20) { out.push(NW_TENS[Math.floor(n / 10)] + (n % 10 ? ' ' + NW_ONES[n % 10] : '')); }
+      else if (n > 0) out.push(NW_ONES[n]);
+      return out.join(' ');
+    }
+    if (Math.floor(v) !== v) {
+      var ip = Math.floor(v), fs = (Math.round((v - ip) * 10000) / 10000).toString().split('.')[1] || '';
+      var digs = fs.split('').map(function (ch) { return NW_ONES[+ch]; }).join(' ');
+      return (neg ? '-' : '') + (ip ? numWords(ip) + ' ' : '') + 'point ' + digs;
+    }
+    var scales = [[1e9, 'billion'], [1e6, 'million'], [1e3, 'thousand']];
+    for (var i = 0; i < scales.length; i++) {
+      var s = scales[i][0];
+      if (v >= s) {
+        var qi = Math.floor(v / s), rest = v - qi * s;
+        return (neg ? '-' : '') + under1000(qi) + ' ' + scales[i][1] + (rest ? ' ' + numWords(rest) : '');
+      }
+    }
+    return (neg ? '-' : '') + under1000(v);
+  }
+  // Render the meeting value in the style of the draft fact it replaces:
+  // "$800" -> "$8,000" · "800 dollars" -> "8,000 dollars" · "eight hundred" -> "eight thousand"
+  function formatLike(draftRaw, mFact) {
+    var v = mFact.value, d = draftRaw || '';
+    if (/%/.test(d) || /\bpercent\b/i.test(d)) return fmtGrouped(v, /\.\d/.test(d) ? 2 : 0) + (/%/.test(d) ? '%' : ' percent');
+    var symM = d.match(/[$€£]/);
+    if (!/\d/.test(d)) {
+      var wm = d.match(/\b(dollars?|euros?|pounds?)\b/i);
+      var base = numWords(v);
+      if (wm) {
+        var w = mFact.currency ? CUR_WORD[mFact.currency] : wm[0].toLowerCase();
+        if (v === 1) w = w.replace(/s$/, '');
+        return base + ' ' + w;
+      }
+      if (symM) return (mFact.currency ? CUR_SYM[mFact.currency] : symM[0]) + fmtGrouped(v, 0);
+      return base;
+    }
+    if (symM) {
+      var sym = mFact.currency ? CUR_SYM[mFact.currency] : symM[0];
+      return sym + fmtGrouped(v, /\.\d/.test(d) ? 2 : 0);
+    }
+    var wordM = d.match(/\b(dollars?|euros?|pounds?|usd|eur|gbp)\b/i);
+    if (wordM) {
+      var w2 = mFact.currency ? CUR_WORD[mFact.currency] : (/eur/i.test(wordM[0]) ? 'euros' : (/pound|gbp/i.test(wordM[0]) ? 'pounds' : 'dollars'));
+      if (v === 1) w2 = w2.replace(/s$/, '');
+      return fmtGrouped(v, /\.\d/.test(d) ? 2 : 0) + ' ' + w2;
+    }
+    return d.indexOf(',') >= 0 || v >= 10000 ? fmtGrouped(v, /\.\d/.test(d) ? 2 : 0) : String(/\.\d/.test(d) ? v.toFixed(2) : Math.round(v));
+  }
+  function fixNumFor(dSent, dSpan, draftRaw, mFact) {
+    if (!dSpan) return null;
+    return dSent.slice(0, dSpan[0]) + formatLike(draftRaw, mFact) + dSent.slice(dSpan[1]);
+  }
+  function fullSpanOf(f) { return f.fullSpan || f.span; }
+  function fullRawOf(text, f) { var sp = fullSpanOf(f); return text.slice(sp[0], sp[1]); }
+
+  /* ---------------- money context: currency + billing period ---------------- */
+  function currencyOf(raw, s, span) {
+    var sym = raw.match(/[$€£]/);
+    if (sym) return sym[0] === '$' ? 'USD' : (sym[0] === '€' ? 'EUR' : 'GBP');
+    if (/\b(dollars?|usd)\b/i.test(raw)) return 'USD';
+    if (/\b(euros?|eur)\b/i.test(raw)) return 'EUR';
+    if (/\b(pounds?|gbp)\b/i.test(raw)) return 'GBP';
+    var tail = s.slice(span[1], span[1] + 14).match(/^\s*(dollars?|euros?|pounds?|usd|eur|gbp)\b/i);
+    if (tail) return /dol|usd/i.test(tail[1]) ? 'USD' : (/eur/i.test(tail[1]) ? 'EUR' : 'GBP');
+    return null;
+  }
+  var PERIOD_MAP = { month: 'month', monthly: 'month', mo: 'month', year: 'year', annually: 'year', yearly: 'year', annum: 'year', yr: 'year', week: 'week', weekly: 'week', quarter: 'quarter', quarterly: 'quarter', day: 'day', daily: 'day' };
+  function periodAfter(s, end) {
+    var rest = s.slice(end, end + 18);
+    var m = rest.match(/^\s*(?:per\s+|a\s+|an\s+|\/\s*)(month|year|week|quarter|day|annum)\b/i)
+      || rest.match(/^\s*(monthly|annually|yearly|weekly|quarterly|daily)\b/i)
+      || rest.match(/^\s*\/\s*(mo|yr)\b/i);
+    if (!m) return null;
+    return { key: PERIOD_MAP[m[1].toLowerCase()], raw: m[0].trim(), end: end + m[0].length };
+  }
+
+  /* ---------------- fee nouns (for zero / absence facts) ---------------- */
+  function feeKey(phrase) {
+    var words = String(phrase || '').toLowerCase().replace(/[^a-z\s-]/g, ' ').split(/\s+/).filter(Boolean);
+    while (words.length && (words[0] === 'the' || words[0] === 'a' || words[0] === 'an' || COUNT_ADJ[words[0]])) words.shift();
+    while (words.length && STOP[words[words.length - 1]]) words.pop();
+    if (!words.length) return null;
+    var last = normNoun(words[words.length - 1]);
+    if (last === 'fee' || last === 'charge' || last === 'cost') words.pop(); else words[words.length - 1] = last;
+    while (words.length && STOP[words[words.length - 1]]) words.pop();
+    if (!words.length) return null;
+    var key = words.join(' ');
+    return key.length >= 3 ? key : null;
+  }
+  function draftFeeKey(text, span) {
+    var after = text.slice(span[1], span[1] + 34);
+    var m1 = after.match(/^\s+([a-z][a-z-]*(?:\s+[a-z][a-z-]*){0,2}?)\s+(fees?|charges?)\b/i);
+    if (m1) { var k1 = feeKey(m1[1]); if (k1) return k1; }
+    var before = text.slice(Math.max(0, span[0] - 34), span[0]);
+    var m3 = before.match(/([a-z][a-z-]*(?:\s+[a-z][a-z-]*){0,2}?)\s+(fees?|charges?)\s*(?:of|:|is|=)?\s*$/i);
+    if (m3) { var k3 = feeKey(m3[1]); if (k3) return k3; }
+    return null;
+  }
+
+  /* ---------------- line-item identifiers (Item 15, SKU AB-12) ---------------- */
+  var ID_KIND = '(?:item|sku|line|part|model|ref|invoice|order|ticket|case)';
+  function idsOf(text) {
+    var out = {}, m, re = new RegExp('\\b' + ID_KIND + '\\s*#?\\s*([A-Za-z0-9][A-Za-z0-9-]*)', 'gi');
+    while ((m = re.exec(text))) {
+      if (!/\d/.test(m[1])) continue;
+      var kind = m[0].match(/^[A-Za-z]+/)[0].toLowerCase();
+      out[kind + ':' + m[1].toLowerCase()] = kind;
+    }
+    return out;
+  }
+  // 2 = shares an identifier · 1 = no identifier evidence either way · 0 = same kind, different id
+  function idTier(dIds, mIds) {
+    var dk = Object.keys(dIds || {}), mk = Object.keys(mIds || {}), i, k;
+    if (!dk.length || !mk.length) return 1;
+    for (i = 0; i < dk.length; i++) if (mIds[dk[i]]) return 2;
+    var dKinds = {}, mKinds = {};
+    dk.forEach(function (x) { dKinds[dIds[x]] = 1; });
+    mk.forEach(function (x) { mKinds[mIds[x]] = 1; });
+    for (k in dKinds) if (mKinds[k]) return 0;
+    return 1;
+  }
+
+  /* ---------------- direction reversal ("You send us" vs "We send you") ---------------- */
+  var DIR_VERBS = { send: 1, deliver: 1, provide: 1, ship: 1, return: 1, pay: 1 };
+  function sideOf(p) { p = p.toLowerCase(); if (p === 'you') return 'other'; if (p === 'we' || p === 'i' || p === 'us' || p === 'me') return 'self'; return 'third'; }
+  function dirPattern(text) {
+    var m = text.match(/^\s*(you|we|i|they|he|she)\s+(?:will\s+|’ll\s+|'ll\s+)?([A-Za-z]+)\s+(?:to\s+)?(you|us|me|them|him|her)\b/i);
+    if (!m) return null;
+    if (!DIR_VERBS[stem(m[2].toLowerCase())]) return null;
+    var low = m[0].toLowerCase();
+    var aOff = low.indexOf(m[1].toLowerCase()), rOff = low.lastIndexOf(m[3].toLowerCase());
+    return { actor: m[1], verb: m[2].toLowerCase(), recip: m[3], actorSide: sideOf(m[1]), recipSide: sideOf(m[3]), actorSpan: [aOff, aOff + m[1].length], recipSpan: [rOff, rOff + m[3].length] };
+  }
+  function dirFix(text, dPat, mPat) {
+    var out = text.slice(0, dPat.recipSpan[0]) + mPat.recip + text.slice(dPat.recipSpan[1]);
+    var a = mPat.actor;
+    var firstChar = text.search(/\S/);
+    if (dPat.actorSpan[0] <= firstChar) a = a.charAt(0).toUpperCase() + a.slice(1);
+    return out.slice(0, dPat.actorSpan[0]) + a + out.slice(dPat.actorSpan[1]);
+  }
+
+  /* ---------------- quote sanity cap (no walls of text) ---------------- */
+  function capQuote(text, span) {
+    if (!text) return { text: text, span: span };
+    var MAX = 280;
+    if (text.length <= MAX) return { text: text, span: span };
+    if (span) {
+      var start = Math.max(0, span[0] - 110);
+      if (start > 0) { var cut = text.indexOf(' ', start); if (cut > 0 && cut < span[0]) start = cut + 1; }
+      var end = Math.min(text.length, span[1] + 110);
+      if (end < text.length) { var sp = text.lastIndexOf(' ', end); if (sp > span[1]) end = sp; }
+      var pre = start > 0 ? '…' : '', post = end < text.length ? '…' : '';
+      return { text: pre + text.slice(start, end) + post, span: [span[0] - start + pre.length, span[1] - start + pre.length] };
+    }
+    var cutEnd = MAX, sp2 = text.lastIndexOf('. ', MAX);
+    if (sp2 > 100) cutEnd = sp2 + 1; else { var sp3 = text.lastIndexOf(' ', MAX); if (sp3 > 0) cutEnd = sp3; }
+    return { text: text.slice(0, cutEnd) + '…', span: null };
+  }
+
   /* ---------------- sentence splitting ---------------- */
   var ABBREV = /\b(Mr|Mrs|Ms|Dr|St|vs|etc|approx|appt|dept|est)\./g;
   function splitSentences(text) {
@@ -87,6 +264,16 @@
     var lines = String(text || '').split(/\r?\n/), out = [];
     for (var i = 0; i < lines.length; i++) {
       var line = lines[i].trim();
+      if (!line) continue;
+      // pasted subtitle text: header / timing / cue-number lines are not sentences
+      if (/^WEBVTT/i.test(line) || /^NOTE\b/.test(line) || /^STYLE\b/.test(line) || /^REGION\b/.test(line)) continue;
+      if (/-->/.test(line) && /\d{1,2}:\d{2}/.test(line)) continue;
+      if (/^\d{1,4}$/.test(line) && /-->/.test(text)) continue;
+      // inline subtitle tags never survive into a quote
+      line = line.replace(/<v(?:\.[^>\s]+)?\s+[^>]*>/gi, ' ');
+      line = line.replace(/<\/?(?:v|c|i|b|u|font|ruby|rt|lang)(?:\s[^>]*)?>/gi, '');
+      line = line.replace(/<\d{1,2}:\d{2}(?::\d{2})?[.,]?\d*>/g, '');
+      line = line.replace(/\s+/g, ' ').trim();
       if (!line) continue;
       var ts = null, speaker = null, m;
       if ((m = line.match(TS_RE))) { ts = m[1]; line = line.slice(m[0].length); }
@@ -177,7 +364,7 @@
   /* ---------------- fact extraction ---------------- */
   var MONEY_CTX = /\b(price|priced|cost|costs|fee|fees|budget|quote|quoted|total|charge|charged|charges|pay|paid|payment|invoice|invoiced|amount|sum|worth|billing|billed|bill|per month|per year|monthly|annually|yearly|salary|rate|retainer|deposit|discount)\b/i;
   function extractFacts(s) {
-    var facts = { money: [], percent: [], counts: [], dates: [], names: [], actors: [], windows: [], promise: false, included: null, billed: null };
+    var facts = { money: [], percent: [], counts: [], dates: [], names: [], actors: [], windows: [], terms: [], zeroFees: [], promise: false, included: null, billed: null };
     var masked = s.split('');
     function mask(a, b) { for (var i = a; i < b; i++) masked[i] = ' '; }
     // dates first (mask their spans so day numbers don't become counts)
@@ -188,6 +375,16 @@
     var tm = s.matchAll(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g), t1;
     for (t1 of tm) mask(t1.index, t1.index + t1[0].length);
     var work = masked.join('');
+    // payment terms ("net 30", "net thirty") are checkable facts
+    var reTmD = /\bnet\s*-?\s*(\d{1,3})\b/gi;
+    while ((m = reTmD.exec(work))) { facts.terms.push({ days: parseInt(m[1], 10), raw: s.slice(m.index, m.index + m[0].length), span: [m.index, m.index + m[0].length] }); mask(m.index, m.index + m[0].length); }
+    work = masked.join('');
+    var reTmW = new RegExp('\\bnet\\s+(' + NUMWORD + '(?:[-\\s]+' + NUMWORD + ')*)', 'gi');
+    while ((m = reTmW.exec(work))) {
+      var tv = wordVal(m[1]);
+      if (tv !== null && tv >= 0 && tv <= 365) { facts.terms.push({ days: tv, raw: s.slice(m.index, m.index + m[0].length), span: [m.index, m.index + m[0].length] }); mask(m.index, m.index + m[0].length); }
+    }
+    work = masked.join('');
     // support windows / explicit limits ("nine to five", "24/7") are checkable facts
     var re24 = /\b24\s*\/\s*7\b/g;
     while ((m = re24.exec(work))) { facts.windows.push({ key: '24/7', raw: s.slice(m.index, m.index + m[0].length), span: [m.index, m.index + m[0].length] }); mask(m.index, m.index + m[0].length); }
@@ -228,11 +425,11 @@
     work = masked.join('');
     var m;
     // money: $ amounts
-    var reD = /\$\s?\d[\d,]*(?:\.\d+)?(?:\s?(?:[kKmM]|bn)\b|\s+(?:thousand|million|billion)\b)?/g;
+    var reD = /[$€£]\s?\d[\d,]*(?:\.\d+)?(?:\s?(?:[kKmM]|bn)\b|\s+(?:thousand|million|billion)\b)?/g;
     while ((m = reD.exec(work))) { var v = amtValOf(m[0]); if (v !== null) { facts.money.push({ value: v, raw: s.slice(m.index, m.index + m[0].length), span: [m.index, m.index + m[0].length] }); mask(m.index, m.index + m[0].length); } }
     work = masked.join('');
     // money: digits + dollars/USD, digits with k suffix
-    var reDK = /\b\d[\d,]*(?:\.\d+)?\s*(?:dollars?|USD)\b/gi;
+    var reDK = /\b\d[\d,]*(?:\.\d+)?\s*(?:dollars?|USD|euros?|EUR|pounds?|GBP)\b/gi;
     while ((m = reDK.exec(work))) { var v2 = amtValOf(m[0]); if (v2 !== null) { facts.money.push({ value: v2, raw: s.slice(m.index, m.index + m[0].length), span: [m.index, m.index + m[0].length] }); mask(m.index, m.index + m[0].length); } }
     work = masked.join('');
     var reK = /\b\d[\d,]*(?:\.\d+)?[kK]\b/g;
@@ -267,10 +464,10 @@
       if (!/\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)\b/i.test(rawW)
         && !/(?:^|\s)(a|an)\s$/i.test(work.slice(0, m.index))) continue; // bare fragment: "thousand" with no number attached
       var after = work.slice(m.index + rawW.length, m.index + rawW.length + 30);
-      var afterM = after.match(/^\s*(dollars?|USD|%|percent|per cent)\b/i);
+      var afterM = after.match(/^\s*(dollars?|USD|euros?|EUR|pounds?|GBP|%|percent|per cent)\b/i);
       if (afterM) {
         var full = [m.index, m.index + rawW.length + afterM[0].length];
-        if (/dollars?|USD/i.test(afterM[1])) facts.money.push({ value: val, raw: s.slice(full[0], full[1]), span: full });
+        if (/dollars?|USD|euros?|EUR|pounds?|GBP/i.test(afterM[1])) facts.money.push({ value: val, raw: s.slice(full[0], full[1]), span: full });
         else facts.percent.push({ value: val, raw: s.slice(full[0], full[1]), span: full });
         mask(full[0], full[1]); work = masked.join(''); continue;
       }
@@ -298,6 +495,8 @@
     while ((m = reC.exec(work))) {
       var num = parseFloat(m[0].replace(/,/g, ''));
       if (num >= 1900 && num <= 2100 && m[0].indexOf(',') === -1 && m[0].indexOf('.') === -1) continue; // year
+      var preC = work.slice(Math.max(0, m.index - 16), m.index);
+      if (new RegExp(ID_KIND + '\\s*#?\\s*$', 'i').test(preC)) continue; // "Item 15" is an identifier, not a quantity
       var aft = work.slice(m.index + m[0].length, m.index + m[0].length + 30);
       var nm = aft.match(/^\s+(?:of\s+the\s+|of\s+)?([A-Za-z]+)/);
       if (!nm) continue;
@@ -324,6 +523,12 @@
       if (usedSpans.some(function (sp) { return bSpan[0] >= sp[0] && bSpan[1] <= sp[1]; })) continue;
       if (bv >= 1000 || MONEY_CTX.test(s)) facts.money.push({ value: bv, raw: s.slice(bSpan[0], bSpan[1]), span: bSpan });
     }
+    // currency + billing period ride along with every money fact
+    facts.money.forEach(function (f) {
+      f.currency = currencyOf(f.raw, s, f.span);
+      var per = periodAfter(s, f.span[1]);
+      if (per) { f.period = per.key; f.periodRaw = per.raw; f.fullSpan = [f.span[0], per.end]; }
+    });
     // names: actors (X will / X 'll / assigned to X)
     var reA = /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s+(?:will|’ll|'ll|is going to|is to)\b/g;
     while ((m = reA.exec(s))) { if (!NAME_STOP[m[1].split(' ')[0]]) facts.actors.push({ name: m[1], span: [m.index, m.index + m[1].length] }); }
@@ -344,18 +549,31 @@
     if (inc) facts.included = { raw: inc[0], span: [inc.index, inc.index + inc[0].length] };
     var bil = s.match(/billed separately|charged separately|not included|billed as an extra|charged extra|billed on top|charged on top|\bexcluded\b/i);
     if (bil) facts.billed = { raw: bil[0], span: [bil.index, bil.index + bil[0].length] };
+    // zero / absence facts: "no setup fee", "no charge for onboarding", "onboarding is free"
+    var ZF = [
+      /\bno\s+([a-z][a-z-]*(?:\s+[a-z][a-z-]*){0,2}?)\s+(?:fees?|charges?|costs?)\b/gi,
+      /\bno\s+charge\s+for\s+(?:the\s+|a\s+|an\s+)?([a-z][a-z-]*(?:\s+[a-z][a-z-]*){0,2})/gi,
+      /\b([a-z][a-z-]*(?:\s+[a-z][a-z-]*){0,2}?)\s+is\s+(?:free|included)\b/gi
+    ];
+    ZF.forEach(function (re) {
+      var zm;
+      while ((zm = re.exec(s))) {
+        var key = feeKey(zm[1]);
+        if (key && !facts.zeroFees.some(function (z) { return z.key === key; })) facts.zeroFees.push({ key: key, raw: zm[0], span: [zm.index, zm.index + zm[0].length] });
+      }
+    });
     return facts;
   }
   function amtValOf(t) {
     t = t.trim();
-    if (/^\$/.test(t) || /^\d/.test(t)) {
+    if (/^[$€£]/.test(t) || /^\d/.test(t)) {
       var mult = 1;
       var wm = t.match(/(thousand|million|billion)\s*$/i);
       if (wm) mult = wm[1].toLowerCase() === 'thousand' ? 1e3 : (wm[1].toLowerCase() === 'million' ? 1e6 : 1e9);
       else if (/bn\s*$/i.test(t)) mult = 1e9;
       else if (/[kK]\s*$/.test(t)) mult = 1e3;
       else if (/[mM]\s*$/.test(t)) mult = 1e6;
-      var n = parseFloat(t.replace(/[$,\s]/g, '').replace(/(thousand|million|billion|bn|[kKmM])$/i, ''));
+      var n = parseFloat(t.replace(/[$€£,\s]/g, '').replace(/(thousand|million|billion|bn|[kKmM])$/i, ''));
       if (isNaN(n)) return null;
       return n * mult;
     }
@@ -386,7 +604,7 @@
         && /^\s*(?:and\s+|so\s+)?(i\s+(?:will|’ll|'ll)|i'?m\s+going\s+to)\b/i.test(s.text)) {
         facts.actors.push({ name: s.speaker, span: null, implied: true });
       }
-      return { text: s.text, timestamp: s.timestamp, speaker: s.speaker, index: i, facts: facts, toks: tokens(s.text) };
+      return { text: s.text, timestamp: s.timestamp, speaker: s.speaker, index: i, facts: facts, toks: tokens(s.text), ids: idsOf(s.text) };
     });
   }
   function check(transcriptText, draftText, opts) {
@@ -426,6 +644,23 @@
       if (s.speaker && !/^Speaker/i.test(s.speaker)) tNames[s.speaker] = 1;
       s.facts.actors.forEach(function (a) { tNames[a.name] = 1; });
       s.facts.names.forEach(function (n) { tNames[n.name] = 1; });
+    });
+
+    // zero-fee facts, payment terms and the agreed total, indexed meeting-wide
+    var zeroByKey = {};
+    meeting.forEach(function (s) { s.facts.zeroFees.forEach(function (z) { if (!zeroByKey[z.key]) zeroByKey[z.key] = { s: s, z: z }; }); });
+    var tTermDays = {};
+    meeting.forEach(function (s) { s.facts.terms.forEach(function (f) { tTermDays[f.days] = 1; }); });
+    var agreedTotal = null;
+    draft.forEach(function (ds) {
+      ds.facts.money.forEach(function (f) {
+        if (!tMoneyVals[f.value]) return;
+        meeting.forEach(function (ms) {
+          if (!ms.facts.money.some(function (x) { return Math.abs(x.value - f.value) < 0.005; })) return;
+          var sc = score(ds, ms) + (/\btotal\b/i.test(ms.text) ? 0.5 : 0);
+          if (!agreedTotal || sc > agreedTotal.sc) agreedTotal = { s: ms, sc: sc };
+        });
+      });
     });
 
     var flags = [];
@@ -472,9 +707,9 @@
           var arr = ms.facts[kind];
           if (!arr || !arr.length) return;
           if (filterFn && !arr.some(filterFn)) return;
-          out.push({ s: ms, sc: ctxScore(d, span, ms) });
+          out.push({ s: ms, sc: ctxScore(d, span, ms), tier: idTier(d.ids, ms.ids) });
         });
-        out.sort(function (a, b) { return b.sc - a.sc; });
+        out.sort(function (a, b) { return (b.tier - a.tier) || (b.sc - a.sc); });
         return out;
       }
 
@@ -482,8 +717,14 @@
       if (df.money.length) {
         var usedMF = {};
         df.money.forEach(function (mf) {
+          // zero / absence: the meeting said this fee does not exist
+          var fk = draftFeeKey(d.text, mf.span);
+          if (fk && zeroByKey[fk]) {
+            var zh = zeroByKey[fk];
+            addFlag({ type: 'Amount', beta: false, confidence: 'High', draftIndex: d.index, draftSentence: d.text, draftSpan: mf.span, draftFactText: mf.raw, meetingSentence: zh.s.text, meetingSpan: zh.z.span, meetingFactText: zh.z.raw, timestamp: zh.s.timestamp, fix: null });
+            return;
+          }
           var cands = candsFor('money', mf.span);
-          if (!cands.length) return;
           var pick = null, pickFact = null;
           for (var ci = 0; ci < cands.length; ci++) {
             var facts = cands[ci].s.facts.money;
@@ -493,15 +734,29 @@
             }
             if (pick) break;
           }
-          if (!pick || pick.sc < 0.12) return;
-          if (Math.abs(pickFact.value - mf.value) < 0.005) return;
+          if (!pick || pick.sc < 0.12) {
+            // added charge: no counterpart anywhere, but an agreed total DID match
+            if (agreedTotal && !tMoneyVals[mf.value]) {
+              addFlag({ type: 'Amount', beta: false, confidence: 'High', draftIndex: d.index, draftSentence: d.text, draftSpan: mf.span, draftFactText: mf.raw, meetingSentence: agreedTotal.s.text, meetingSpan: null, meetingFactText: null, timestamp: agreedTotal.s.timestamp, fix: null });
+            }
+            return;
+          }
+          if (Math.abs(pickFact.value - mf.value) < 0.005) {
+            // same value: a different currency or billing period is still a change
+            var cDiff = mf.currency && pickFact.currency && mf.currency !== pickFact.currency;
+            var pDiff = mf.period && pickFact.period && mf.period !== pickFact.period;
+            if (cDiff || pDiff) {
+              addFlag({ type: 'Amount', beta: false, confidence: confOf(pick.sc), draftIndex: d.index, draftSentence: d.text, draftSpan: fullSpanOf(mf), draftFactText: fullRawOf(d.text, mf), meetingSentence: pick.s.text, meetingSpan: fullSpanOf(pickFact), meetingFactText: fullRawOf(pick.s.text, pickFact), timestamp: pick.s.timestamp, fix: fixFor(d.text, fullSpanOf(mf), formatLike(fullRawOf(d.text, mf), pickFact) + (pDiff ? ' ' + pickFact.periodRaw : '')) });
+            }
+            return;
+          }
           // if the draft value is genuinely said in another, nearly-as-good sentence, stay quiet
           var holders = meeting.filter(function (ms) { return ms.facts.money.some(function (x) { return Math.abs(x.value - mf.value) < 0.005; }); });
           if (holders.length && holders.indexOf(pick.s) < 0) {
             var hBest = 0; holders.forEach(function (ms) { var sc = ctxScore(d, mf.span, ms); if (sc > hBest) hBest = sc; });
             if (!(pick.sc >= 0.30 && hBest < pick.sc - 0.15)) return;
           }
-          addFlag({ type: 'Amount', beta: false, confidence: confOf(pick.sc), draftIndex: d.index, draftSentence: d.text, draftSpan: mf.span, draftFactText: mf.raw, meetingSentence: pick.s.text, meetingSpan: pickFact.span, meetingFactText: pickFact.raw, timestamp: pick.s.timestamp, fix: fixFor(d.text, mf.span, pickFact.raw) });
+          addFlag({ type: 'Amount', beta: false, confidence: confOf(pick.sc), draftIndex: d.index, draftSentence: d.text, draftSpan: mf.span, draftFactText: mf.raw, meetingSentence: pick.s.text, meetingSpan: pickFact.span, meetingFactText: pickFact.raw, timestamp: pick.s.timestamp, fix: fixNumFor(d.text, mf.span, mf.raw, pickFact) });
         });
       }
       // --- percent (reported as Quantity) ---
@@ -511,19 +766,31 @@
           if (!cands.length || cands[0].sc < 0.12) return;
           var pm = cands[0].s.facts.percent[0];
           if (Math.abs(pm.value - pf.value) < 0.005) return;
-          addFlag({ type: 'Quantity', beta: false, confidence: confOf(cands[0].sc), draftIndex: d.index, draftSentence: d.text, draftSpan: pf.span, draftFactText: pf.raw, meetingSentence: cands[0].s.text, meetingSpan: pm.span, meetingFactText: pm.raw, timestamp: cands[0].s.timestamp, fix: fixFor(d.text, pf.span, pm.raw) });
+          addFlag({ type: 'Quantity', beta: false, confidence: confOf(cands[0].sc), draftIndex: d.index, draftSentence: d.text, draftSpan: pf.span, draftFactText: pf.raw, meetingSentence: cands[0].s.text, meetingSpan: pm.span, meetingFactText: pm.raw, timestamp: cands[0].s.timestamp, fix: fixNumFor(d.text, pf.span, pf.raw, pm) });
         });
       }
       // --- counts by noun ---
       if (df.counts.length) {
         df.counts.forEach(function (cf) {
           var cands = candsFor('counts', cf.span, function (x) { return x.noun === cf.noun; });
+          cands = cands.filter(function (c) { return c.tier !== 0; }); // never compare across different identifiers
           if (!cands.length || cands[0].sc < 0.12) return;
           var same = cands[0].s.facts.counts.filter(function (x) { return x.noun === cf.noun; });
           var hit = same.some(function (x) { return Math.abs(x.value - cf.value) < 0.005; });
           if (hit) return;
           var cm2 = same[0];
-          addFlag({ type: 'Quantity', beta: false, confidence: confOf(cands[0].sc), draftIndex: d.index, draftSentence: d.text, draftSpan: cf.span, draftFactText: cf.raw + ' ' + cf.noun, meetingSentence: cands[0].s.text, meetingSpan: cm2.span, meetingFactText: cm2.raw + ' ' + cm2.noun, timestamp: cands[0].s.timestamp, fix: fixFor(d.text, cf.span, cm2.raw) });
+          addFlag({ type: 'Quantity', beta: false, confidence: confOf(cands[0].sc), draftIndex: d.index, draftSentence: d.text, draftSpan: cf.span, draftFactText: cf.raw + ' ' + cf.noun, meetingSentence: cands[0].s.text, meetingSpan: cm2.span, meetingFactText: cm2.raw + ' ' + cm2.noun, timestamp: cands[0].s.timestamp, fix: fixNumFor(d.text, cf.span, cf.raw, cm2) });
+        });
+      }
+      // --- payment terms ("net 30" vs "net 60") ---
+      if (df.terms.length) {
+        df.terms.forEach(function (tf) {
+          if (tTermDays[tf.days]) return; // the same term is said somewhere in the meeting
+          var cands = candsFor('terms', tf.span);
+          if (!cands.length || cands[0].sc < 0.12) return;
+          var tmf = cands[0].s.facts.terms[0];
+          if (tmf.days === tf.days) return;
+          addFlag({ type: 'Date', beta: false, confidence: confOf(cands[0].sc), draftIndex: d.index, draftSentence: d.text, draftSpan: tf.span, draftFactText: tf.raw, meetingSentence: cands[0].s.text, meetingSpan: tmf.span, meetingFactText: tmf.raw, timestamp: cands[0].s.timestamp, fix: fixFor(d.text, tf.span, tmf.raw) });
         });
       }
       // --- support windows / explicit limits ---
@@ -569,6 +836,23 @@
           var am = cands[0].s.facts.actors[0];
           addFlag({ type: 'Name', beta: false, confidence: confOf(cands[0].sc), draftIndex: d.index, draftSentence: d.text, draftSpan: af.span, draftFactText: af.name, meetingSentence: cands[0].s.text, meetingSpan: am.span, meetingFactText: am.name, timestamp: cands[0].s.timestamp, fix: fixFor(d.text, af.span, am.name) });
         });
+      }
+      // --- direction reversal ("You send us the files" said, "We send you the files" written) ---
+      var dPat = dirPattern(d.text);
+      if (dPat) {
+        var dBest = null;
+        meeting.forEach(function (ms) {
+          var mPat = dirPattern(ms.text);
+          if (!mPat || stem(mPat.verb) !== stem(dPat.verb)) return;
+          var swapped = (mPat.actorSide === dPat.recipSide && mPat.recipSide === dPat.actorSide)
+            && ((mPat.actorSide === 'self' && mPat.recipSide === 'other') || (mPat.actorSide === 'other' && mPat.recipSide === 'self'));
+          if (!swapped) return;
+          var sc = score(d, ms);
+          if (!dBest || sc > dBest.sc) dBest = { s: ms, sc: sc, mPat: mPat };
+        });
+        if (dBest && dBest.sc >= 0.30) {
+          addFlag({ type: 'Direction', beta: false, confidence: 'Low', draftIndex: d.index, draftSentence: d.text, draftSpan: dPat.actorSpan, draftFactText: dPat.actor + ' ' + dPat.verb + ' ' + dPat.recip, meetingSentence: dBest.s.text, meetingSpan: dBest.mPat.actorSpan, meetingFactText: dBest.mPat.actor + ' ' + dBest.mPat.verb + ' ' + dBest.mPat.recip, timestamp: dBest.s.timestamp, fix: dirFix(d.text, dPat, dBest.mPat) });
+        }
       }
       // --- inclusion flip: said included, draft bills separately (or reverse) ---
       var fc = null;
@@ -635,6 +919,12 @@
       flags.push({ type: 'Promise', beta: true, confidence: 'Low', draftIndex: -1, draftSentence: null, draftSpan: null, draftFactText: null, meetingSentence: ms.text, meetingSpan: carried.f.span, meetingFactText: carried.f.raw, timestamp: ms.timestamp, fix: null, dropped: true });
     });
 
+    // display sanity: quotes are the matched sentence, never a wall of text
+    flags.forEach(function (f) {
+      if (f.meetingSentence) { var cq1 = capQuote(f.meetingSentence, f.meetingSpan); f.meetingSentence = cq1.text; f.meetingSpan = cq1.span; }
+      if (f.draftSentence) { var cq2 = capQuote(f.draftSentence, f.draftSpan); f.draftSentence = cq2.text; f.draftSpan = cq2.span; }
+    });
+
     flags.sort(function (a, b) {
       var ca = a.confidence === 'High' ? 0 : 1, cb = b.confidence === 'High' ? 0 : 1;
       if (ca !== cb) return ca - cb;
@@ -685,8 +975,12 @@
       var tm = line.match(/(\d{1,2}:\d{2}(?::\d{2})?[.,]?\d*)\s*-->/);
       if (tm) { curTs = tm[1].replace(',', '.').replace(/\.\d+$/, ''); continue; }
       if (/^\d+$/.test(line)) continue; // SRT cue number
+      var voice = null;
+      line = line.replace(/<v(?:\.[^>\s]+)?\s+([^>]+)>/gi, function (_, name) { voice = name.trim(); return ''; });
+      line = line.replace(/<\d{1,2}:\d{2}(?::\d{2})?[.,]?\d*>/g, '');
       line = line.replace(/<[^>]+>/g, '').trim();
       if (!line) continue;
+      if (voice) line = voice + ': ' + line;
       out.push((curTs ? '[' + curTs + '] ' : '') + line);
     }
     return out.join('\n');
