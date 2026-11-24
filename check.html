@@ -140,8 +140,8 @@ textarea.ck:focus{outline:3px solid #b277ef;outline-offset:1px}
 </div>
 
 <h2>Privacy you can verify</h2>
-<p>Do not take the sentence above on trust — here is a recording instead. During a full run of the sample on this page (load the sample, press <b>Check</b>, then <b>Download results (PDF)</b>), the check and the PDF together sent <b>zero network requests</b>. The comparison happens entirely in this tab, and the PDF is printed by your own browser. When the page first opens, it loads only its own files — this page, the checker code, the fonts and the logo — plus an anonymous counter. The only data that ever leaves afterwards is a count (a check ran, a catch was found), never a word you pasted.</p>
-<p>Check us, the same way: open your browser's Network tab, clear the list, then press <b>Check</b>. The list stays empty.</p>
+<p>Do not take the sentence above on trust — check it yourself. Pressing <b>Check</b> sends none of your text anywhere: the comparison happens entirely in this tab, and the PDF is printed by your own browser. The only requests a check triggers are a few small counting beacons to our analytics, named after the event — a check ran, a catch was found — never a word you pasted. When the page first opens, it loads only its own files: this page, the checker code, the fonts and the logo.</p>
+<p>Check us: open your browser's Network tab, clear the list, then press <b>Check</b>. You will see those counting beacons — and nothing that carries your words.</p>
 
 <h2>What it catches</h2>
 <p>Three real catches from the sample above — load it with <b>Try a sample</b> and run the check to see these cards appear live.</p>
@@ -286,9 +286,9 @@ function marked(text,span,cls){
  if(!span)return esc(text);
  return esc(text.slice(0,span[0]))+'<mark class="'+cls+'">'+esc(text.slice(span[0],span[1]))+'</mark>'+esc(text.slice(span[1]));
 }
-var TYPE_LABEL={Amount:'Amount',Date:'Date or deadline',Name:'Owner or name',Quantity:'Quantity or scope',Promise:'Promise'};
+var TYPE_LABEL={Amount:'Amount',Date:'Date or deadline',Name:'Owner or name',Quantity:'Quantity or scope',Promise:'Promise',Direction:'Direction'};
 function cardHTML(f,i){
- var top='<p class="flagTop">'+TYPE_LABEL[f.type]+' · '+(f.confidence==='High'?'High confidence':'<span class="confLow">Low confidence</span>')+(f.beta?'<span class="betaTag">Beta</span>':'')+'</p>';
+ var top='<p class="flagTop">'+TYPE_LABEL[f.type]+(f.beta?'<span class="betaTag">Beta</span>':' · '+(f.confidence==='High'?'High confidence':'<span class="confLow">Low confidence</span>'))+'</p>';
  var lines='';
  if(f.dropped){
   lines+='<p class="flagLine"><span class="flagLabel">Missing from your draft:</span> this was said in the meeting but never made it into the draft.</p>';
@@ -330,7 +330,7 @@ function buildPrint(res){
  var h='<h1>Proofaro — check results</h1><p>'+new Date().toLocaleString()+' · Checked in your browser with the free Proofaro checker.</p>';
  if(!res.flags.length){h+='<p>No mismatches found in numbers, dates, names or promises. Still worth one last read.</p>';}
  res.flags.forEach(function(f){
-  h+='<div class="prFlag"><p><b>'+TYPE_LABEL[f.type]+' · '+f.confidence+' confidence'+(f.beta?' (Beta)':'')+'</b></p>';
+  h+='<div class="prFlag"><p><b>'+TYPE_LABEL[f.type]+(f.beta?' · Beta':' · '+f.confidence+' confidence')+'</b></p>';
   if(f.draftSentence)h+='<p>Draft says: '+esc(f.draftSentence)+'</p>';
   if(f.dropped)h+='<p>Missing from your draft: this was said in the meeting but never made it into the draft.</p>';
   if(f.meetingSentence)h+='<p>Meeting said: '+esc(f.meetingSentence)+(f.timestamp?' ('+esc(f.timestamp)+')':'')+'</p>';
