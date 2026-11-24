@@ -505,6 +505,16 @@
           mask(m.index, m.index + rawW.length); work = masked.join(''); continue;
         }
       }
+      // spoken rate: "eighty a night", "two forty a week" (the [ones][tens]
+      // dictation shorthand for 240) — a number riding on a per-unit phrase in
+      // a money-context sentence is an amount even when it is under 100
+      var rateM = after.match(/^\s+(?:a|per)\s+(night|day|week|month|hour|year)\b/i);
+      if (rateM && (MONEY_CTX.test(s) || /[$€£]|\b(?:dollars?|euros?|pounds?|usd|eur|gbp)\b/i.test(s))) {
+        var rVal = val, toksW = rawW.toLowerCase().replace(/-/g, ' ').trim().split(/\s+/);
+        if (toksW.length === 2 && NUMW[toksW[0]] >= 1 && NUMW[toksW[0]] <= 9 && NUMW[toksW[1]] >= 20 && NUMW[toksW[1]] <= 90) rVal = NUMW[toksW[0]] * 100 + NUMW[toksW[1]];
+        facts.money.push({ value: rVal, raw: s.slice(m.index, m.index + rawW.length), span: [m.index, m.index + rawW.length] });
+        mask(m.index, m.index + rawW.length); work = masked.join(''); continue;
+      }
       // bare spoken number of money-like size ("agreed on eight thousand") -> money
       if (val >= 100) {
         facts.money.push({ value: val, raw: s.slice(m.index, m.index + rawW.length), span: [m.index, m.index + rawW.length] });
@@ -669,7 +679,27 @@
         var a1 = s1.facts[kind], a2 = s2.facts[kind];
         if (!a1 || a1.length !== 1 || !a2 || a2.length !== 1) return;
         // the marker must introduce (or immediately trail) the correcting value
-        if (mm.index < a2[0].span[0] || mm.index <= a2[0].span[1] + 24) s1.facts[kind] = [];
+        if (!(mm.index < a2[0].span[0] || mm.index <= a2[0].span[1] + 24)) return;
+        // and the correction must be ABOUT s1's fact: either s2 is a bare
+        // correction utterance, or the two facts share a distinctive
+        // descriptor (units and currency words do not count). Otherwise the
+        // marker corrects something inside s2's own new topic — two price
+        // lines, the second self-corrected — and s1's figure stands.
+        var bare = Object.keys(tokens(s2.text)).length <= 3;
+        if (!bare) {
+          var UNIT_TOK = { kilo: 1, gram: 1, dollar: 1, euro: 1, pound: 1, percent: 1, cent: 1, litre: 1, liter: 1, unit: 1 };
+          function winToks(s, f) {
+            var t = tokens(s.text.slice(Math.max(0, f.span[0] - 45), Math.min(s.text.length, f.span[1] + 45)));
+            var own = tokens(s.text.slice(f.span[0], f.span[1]));
+            for (var w in own) delete t[w];
+            for (var u in UNIT_TOK) delete t[u];
+            return t;
+          }
+          var w1 = winToks(s1, a1[0]), w2 = winToks(s2, a2[0]), shared = false;
+          for (var wk in w1) if (w2[wk]) { shared = true; break; }
+          if (!shared) return;
+        }
+        s1.facts[kind] = [];
       });
     }
   }
@@ -767,6 +797,82 @@
     }
     function confOf(sc) { return sc >= 0.30 ? 'High' : 'Low'; }
 
+    // descriptor words around a fact (its local identity: "luxury suite",
+    // "travel fee", "deposit") — used to prefer the right counterpart when a
+    // sentence carries several facts of the same kind
+    function descSet(text, span) {
+      var lo = Math.max(0, span[0] - 45), hi = Math.min(text.length, span[1] + 45);
+      var set = tokens(text.slice(lo, hi));
+      var own = tokens(text.slice(span[0], span[1]));
+      for (var w in own) delete set[w];
+      return set;
+    }
+    function descOverlap(d, mf, ms, mFact) {
+      var a = descSet(d.text, mf.span), b = descSet(ms.text, mFact.span), n = 0;
+      for (var w in a) if (b[w]) n++;
+      return n;
+    }
+    // hard floor: the draft amount itself is said somewhere in the meeting
+    // (same value, no currency contradiction, no period contradiction) — it
+    // must never be accused against a DIFFERENT meeting value
+    function floorHit(mf) {
+      var hit = false;
+      meeting.forEach(function (ms) {
+        ms.facts.money.forEach(function (g) {
+          if (hit) return;
+          if (Math.abs(g.value - mf.value) >= 0.005) return;
+          if (mf.currency && g.currency && mf.currency !== g.currency) return;
+          if (mf.period && g.period && mf.period !== g.period && ANNUAL_FACTOR[mf.period] && ANNUAL_FACTOR[g.period]) return;
+          hit = true;
+        });
+      });
+      return hit;
+    }
+    // matched-pair bookkeeping for the dropped-amount pass: which meeting
+    // sentences were actually compared against, and which of their money
+    // facts were accounted for by a comparison
+    var matchedMs = {}, matchedMoneyMs = {}, accountedMF = {};
+    // the comparison itself, shared by word-matched pairing and by the
+    // fact-type fallback pairing (forceLow = tentative pairing)
+    function compareMoney(d, mf, ms, mFact, sc, forceLow, pickDesc) {
+      var conf = forceLow ? 'Low' : confOf(sc);
+      if (Math.abs(mFact.value - mf.value) < 0.005) {
+        // same value: a different currency or billing period is still a change
+        var cDiff = mf.currency && mFact.currency && mf.currency !== mFact.currency;
+        var pDiff = mf.period && mFact.period && mf.period !== mFact.period;
+        if (cDiff || pDiff) {
+          addFlag({ type: 'Amount', beta: false, confidence: conf, draftIndex: d.index, draftSentence: d.text, draftSpan: fullSpanOf(mf), draftFactText: fullRawOf(d.text, mf), meetingSentence: ms.text, meetingSpan: fullSpanOf(mFact), meetingFactText: fullRawOf(ms.text, mFact), timestamp: ms.timestamp, fix: fixFor(d.text, fullSpanOf(mf), formatLike(fullRawOf(d.text, mf), mFact) + (pDiff ? ' ' + mFact.periodRaw : '')) });
+        }
+        return;
+      }
+      // both sides carry a billing period: compare ANNUALISED rates, not raw
+      // values — $24,000 per year and $2,000 per month are the same retainer.
+      // An equivalent rate stays silent (a currency change still flags); a
+      // genuinely different rate flags, and its fix states the meeting's rate
+      // converted into the draft's own period — never the raw meeting value
+      // wearing the draft's period.
+      if (mf.period && mFact.period && mf.period !== mFact.period && ANNUAL_FACTOR[mf.period] && ANNUAL_FACTOR[mFact.period]) {
+        var annM = mFact.value * ANNUAL_FACTOR[mFact.period];
+        var annD = mf.value * ANNUAL_FACTOR[mf.period];
+        var convFact = { value: annM / ANNUAL_FACTOR[mf.period], currency: mFact.currency };
+        var curDiff = mf.currency && mFact.currency && mf.currency !== mFact.currency;
+        if (Math.abs(annD - annM) <= Math.max(annM * 0.01, 12)) {
+          if (curDiff) {
+            addFlag({ type: 'Amount', beta: false, confidence: conf, draftIndex: d.index, draftSentence: d.text, draftSpan: fullSpanOf(mf), draftFactText: fullRawOf(d.text, mf), meetingSentence: ms.text, meetingSpan: fullSpanOf(mFact), meetingFactText: fullRawOf(ms.text, mFact), timestamp: ms.timestamp, fix: fixNumFor(d.text, mf.span, mf.raw, convFact) });
+          }
+          return;
+        }
+        addFlag({ type: 'Amount', beta: false, confidence: conf, draftIndex: d.index, draftSentence: d.text, draftSpan: fullSpanOf(mf), draftFactText: fullRawOf(d.text, mf), meetingSentence: ms.text, meetingSpan: fullSpanOf(mFact), meetingFactText: fullRawOf(ms.text, mFact), timestamp: ms.timestamp, fix: fixNumFor(d.text, mf.span, mf.raw, convFact) });
+        return;
+      }
+      // the floor yields when the pairing itself is descriptor-confident: a
+      // draft amount whose own words name THIS counterpart ("the total comes
+      // to $2,000", matched to the meeting's total) is accused against it even
+      // if the same figure also appears elsewhere in another role (a deposit)
+      if (!(pickDesc >= 2) && floorHit(mf)) return;
+      addFlag({ type: 'Amount', beta: false, confidence: conf, draftIndex: d.index, draftSentence: d.text, draftSpan: mf.span, draftFactText: mf.raw, meetingSentence: ms.text, meetingSpan: mFact.span, meetingFactText: mFact.raw, timestamp: ms.timestamp, fix: fixNumFor(d.text, mf.span, mf.raw, mFact) });
+    }
+
     draft.forEach(function (d) {
       var df = d.facts;
       var best = { s: null, sc: 0 };
@@ -795,59 +901,44 @@
             addFlag({ type: 'Amount', beta: false, confidence: 'High', draftIndex: d.index, draftSentence: d.text, draftSpan: mf.span, draftFactText: mf.raw, meetingSentence: zh.s.text, meetingSpan: zh.z.span, meetingFactText: zh.z.raw, timestamp: zh.s.timestamp, fix: null });
             return;
           }
+          // every unused meeting money fact is a candidate counterpart; the
+          // pick prefers the same identifier tier, then the fact whose local
+          // descriptors match the draft fact's ("luxury suite" pairs with the
+          // luxury rate, not the standard one), then an exact value, then the
+          // best sentence context
           var cands = candsFor('money', mf.span);
-          var pick = null, pickFact = null;
-          for (var ci = 0; ci < cands.length; ci++) {
-            var facts = cands[ci].s.facts.money;
-            for (var fi = 0; fi < facts.length; fi++) {
-              var key = cands[ci].s.index + ':' + fi;
-              if (!usedMF[key]) { pick = cands[ci]; pickFact = facts[fi]; usedMF[key] = 1; break; }
-            }
-            if (pick) break;
-          }
-          if (!pick || pick.sc < 0.12) {
-            // added charge: no counterpart anywhere, but an agreed total DID match
-            if (agreedTotal && !tMoneyVals[mf.value]) {
-              addFlag({ type: 'Amount', beta: false, confidence: 'High', draftIndex: d.index, draftSentence: d.text, draftSpan: mf.span, draftFactText: mf.raw, meetingSentence: agreedTotal.s.text, meetingSpan: null, meetingFactText: null, timestamp: agreedTotal.s.timestamp, fix: null });
-            }
+          var options = [], totalFacts = 0;
+          cands.forEach(function (c) {
+            c.s.facts.money.forEach(function (fact, fi) {
+              totalFacts++;
+              if (usedMF[c.s.index + ':' + fi]) return;
+              options.push({ s: c.s, sc: c.sc, tier: c.tier, fact: fact, fi: fi, desc: descOverlap(d, mf, c.s, fact), exact: (Math.abs(fact.value - mf.value) < 0.005 && !(mf.currency && fact.currency && mf.currency !== fact.currency)) ? 1 : 0 });
+            });
+          });
+          options.sort(function (a, b) { return (b.tier - a.tier) || (b.desc - a.desc) || (b.exact - a.exact) || (b.sc - a.sc) || (a.s.index - b.s.index) || (a.fi - b.fi); });
+          var pick = options.length ? options[0] : null;
+          if (pick && pick.sc >= 0.12) {
+            usedMF[pick.s.index + ':' + pick.fi] = 1;
+            matchedMs[pick.s.index] = 1; matchedMoneyMs[pick.s.index] = 1; accountedMF[pick.s.index + ':' + pick.fi] = 1;
+            compareMoney(d, mf, pick.s, pick.fact, pick.sc, false, pick.desc);
             return;
           }
-          if (Math.abs(pickFact.value - mf.value) < 0.005) {
-            // same value: a different currency or billing period is still a change
-            var cDiff = mf.currency && pickFact.currency && mf.currency !== pickFact.currency;
-            var pDiff = mf.period && pickFact.period && mf.period !== pickFact.period;
-            if (cDiff || pDiff) {
-              addFlag({ type: 'Amount', beta: false, confidence: confOf(pick.sc), draftIndex: d.index, draftSentence: d.text, draftSpan: fullSpanOf(mf), draftFactText: fullRawOf(d.text, mf), meetingSentence: pick.s.text, meetingSpan: fullSpanOf(pickFact), meetingFactText: fullRawOf(pick.s.text, pickFact), timestamp: pick.s.timestamp, fix: fixFor(d.text, fullSpanOf(mf), formatLike(fullRawOf(d.text, mf), pickFact) + (pDiff ? ' ' + pickFact.periodRaw : '')) });
-            }
+          // fallback pairing: the sentence matched nothing by shared words
+          // ("It is $2,000 per month." / "Price: $2,000 per year.") — compare
+          // by fact type instead of staying silent. A single meeting amount
+          // is compared normally; with several, the best counterpart is
+          // compared tentatively (Low), and only when it carries some signal
+          // (shared descriptors or the same value).
+          if (pick && (totalFacts === 1 || pick.desc > 0 || pick.exact)) {
+            usedMF[pick.s.index + ':' + pick.fi] = 1;
+            matchedMs[pick.s.index] = 1; matchedMoneyMs[pick.s.index] = 1; accountedMF[pick.s.index + ':' + pick.fi] = 1;
+            compareMoney(d, mf, pick.s, pick.fact, pick.sc, totalFacts !== 1, pick.desc);
             return;
           }
-          // both sides carry a billing period: compare ANNUALISED rates, not raw
-          // values — $24,000 per year and $2,000 per month are the same retainer.
-          // An equivalent rate stays silent (a currency change still flags); a
-          // genuinely different rate flags, and its fix states the meeting's rate
-          // converted into the draft's own period — never the raw meeting value
-          // wearing the draft's period.
-          if (mf.period && pickFact.period && mf.period !== pickFact.period && ANNUAL_FACTOR[mf.period] && ANNUAL_FACTOR[pickFact.period]) {
-            var annM = pickFact.value * ANNUAL_FACTOR[pickFact.period];
-            var annD = mf.value * ANNUAL_FACTOR[mf.period];
-            var convFact = { value: annM / ANNUAL_FACTOR[mf.period], currency: pickFact.currency };
-            var curDiff = mf.currency && pickFact.currency && mf.currency !== pickFact.currency;
-            if (Math.abs(annD - annM) <= Math.max(annM * 0.01, 12)) {
-              if (curDiff) {
-                addFlag({ type: 'Amount', beta: false, confidence: confOf(pick.sc), draftIndex: d.index, draftSentence: d.text, draftSpan: fullSpanOf(mf), draftFactText: fullRawOf(d.text, mf), meetingSentence: pick.s.text, meetingSpan: fullSpanOf(pickFact), meetingFactText: fullRawOf(pick.s.text, pickFact), timestamp: pick.s.timestamp, fix: fixNumFor(d.text, mf.span, mf.raw, convFact) });
-              }
-              return;
-            }
-            addFlag({ type: 'Amount', beta: false, confidence: confOf(pick.sc), draftIndex: d.index, draftSentence: d.text, draftSpan: fullSpanOf(mf), draftFactText: fullRawOf(d.text, mf), meetingSentence: pick.s.text, meetingSpan: fullSpanOf(pickFact), meetingFactText: fullRawOf(pick.s.text, pickFact), timestamp: pick.s.timestamp, fix: fixNumFor(d.text, mf.span, mf.raw, convFact) });
-            return;
+          // added charge: no counterpart anywhere, but an agreed total DID match
+          if (agreedTotal && !tMoneyVals[mf.value]) {
+            addFlag({ type: 'Amount', beta: false, confidence: 'High', draftIndex: d.index, draftSentence: d.text, draftSpan: mf.span, draftFactText: mf.raw, meetingSentence: agreedTotal.s.text, meetingSpan: null, meetingFactText: null, timestamp: agreedTotal.s.timestamp, fix: null });
           }
-          // if the draft value is genuinely said in another, nearly-as-good sentence, stay quiet
-          var holders = meeting.filter(function (ms) { return ms.facts.money.some(function (x) { return Math.abs(x.value - mf.value) < 0.005; }); });
-          if (holders.length && holders.indexOf(pick.s) < 0) {
-            var hBest = 0; holders.forEach(function (ms) { var sc = ctxScore(d, mf.span, ms); if (sc > hBest) hBest = sc; });
-            if (!(pick.sc >= 0.30 && hBest < pick.sc - 0.15)) return;
-          }
-          addFlag({ type: 'Amount', beta: false, confidence: confOf(pick.sc), draftIndex: d.index, draftSentence: d.text, draftSpan: mf.span, draftFactText: mf.raw, meetingSentence: pick.s.text, meetingSpan: pickFact.span, meetingFactText: pickFact.raw, timestamp: pick.s.timestamp, fix: fixNumFor(d.text, mf.span, mf.raw, pickFact) });
         });
       }
       // --- percent (reported as Quantity) ---
@@ -855,6 +946,7 @@
         df.percent.forEach(function (pf) {
           var cands = candsFor('percent', pf.span);
           if (!cands.length || cands[0].sc < 0.12) return;
+          matchedMs[cands[0].s.index] = 1;
           var pm = cands[0].s.facts.percent[0];
           if (Math.abs(pm.value - pf.value) < 0.005) return;
           addFlag({ type: 'Quantity', beta: false, confidence: confOf(cands[0].sc), draftIndex: d.index, draftSentence: d.text, draftSpan: pf.span, draftFactText: pf.raw, meetingSentence: cands[0].s.text, meetingSpan: pm.span, meetingFactText: pm.raw, timestamp: cands[0].s.timestamp, fix: fixNumFor(d.text, pf.span, pf.raw, pm) });
@@ -866,6 +958,7 @@
           var cands = candsFor('counts', cf.span, function (x) { return x.noun === cf.noun; });
           cands = cands.filter(function (c) { return c.tier !== 0; }); // never compare across different identifiers
           if (!cands.length || cands[0].sc < 0.12) return;
+          matchedMs[cands[0].s.index] = 1;
           var same = cands[0].s.facts.counts.filter(function (x) { return x.noun === cf.noun; });
           var hit = same.some(function (x) { return Math.abs(x.value - cf.value) < 0.005; });
           if (hit) return;
@@ -879,6 +972,7 @@
           if (tTermDays[tf.days]) return; // the same term is said somewhere in the meeting
           var cands = candsFor('terms', tf.span);
           if (!cands.length || cands[0].sc < 0.12) return;
+          matchedMs[cands[0].s.index] = 1;
           var tmf = cands[0].s.facts.terms[0];
           if (tmf.days === tf.days) return;
           addFlag({ type: 'Date', beta: false, confidence: confOf(cands[0].sc), draftIndex: d.index, draftSentence: d.text, draftSpan: tf.span, draftFactText: tf.raw, meetingSentence: cands[0].s.text, meetingSpan: tmf.span, meetingFactText: tmf.raw, timestamp: cands[0].s.timestamp, fix: fixFor(d.text, tf.span, tmf.raw) });
@@ -889,6 +983,7 @@
         df.windows.forEach(function (wf) {
           var cands = candsFor('windows', wf.span);
           if (!cands.length || cands[0].sc < 0.12) return;
+          matchedMs[cands[0].s.index] = 1;
           var wm = cands[0].s.facts.windows[0];
           if (wm.key === wf.key) return;
           addFlag({ type: 'Promise', beta: true, confidence: confOf(cands[0].sc), draftIndex: d.index, draftSentence: d.text, draftSpan: wf.span, draftFactText: wf.raw, meetingSentence: cands[0].s.text, meetingSpan: wm.span, meetingFactText: wm.raw, timestamp: cands[0].s.timestamp, fix: fixFor(d.text, wf.span, wm.raw) });
@@ -912,6 +1007,7 @@
           var cands = candsFor('dates', dtf.span);
           for (var ci = 0; ci < cands.length; ci++) {
             if (cands[ci].sc < 0.12) break;
+            matchedMs[cands[ci].s.index] = 1;
             var darr = cands[ci].s.facts.dates;
             if (darr.some(function (x) { return sameDate(x, dtf) || dateConsistent(x, dtf); })) return;
             var clash = null;
@@ -976,6 +1072,62 @@
           addFlag({ type: 'Promise', beta: true, confidence: absent.length >= Math.ceil(toksArr.length * 0.6) ? 'High' : 'Low', draftIndex: d.index, draftSentence: d.text, draftSpan: null, draftFactText: d.text, meetingSentence: null, meetingSpan: null, meetingFactText: null, timestamp: null, fix: null });
         }
       }
+    });
+
+    // --- dropped amounts: a meeting amount the draft never mentions ---
+    // Tier 1 (High): inside a sentence pair that WAS compared on money, an
+    // amount nobody accounted for has simply been left out ("The total is
+    // $4,000 plus a $750 travel fee." -> "Confirming the total is $4,000.").
+    // Tier 2 (Low): the amount sits in an unmatched sentence that still
+    // belongs to a compared conversation — same speaker turn, or the same
+    // fee/item noun as a compared sentence or the draft.
+    var draftMoneyArr = [];
+    draft.forEach(function (d) { d.facts.money.forEach(function (f) { draftMoneyArr.push(f.value); }); });
+    function draftValPresent(v) { return draftMoneyArr.some(function (x) { return Math.abs(x - v) < 0.005; }); }
+    function droppedAmountFlag(ms, f, conf) {
+      return { type: 'Amount', beta: false, confidence: conf, draftIndex: -1, draftSentence: null, draftSpan: null, draftFactText: null, meetingSentence: ms.text, meetingSpan: fullSpanOf(f), meetingFactText: fullRawOf(ms.text, f), timestamp: ms.timestamp, fix: null, dropped: true };
+    }
+    function alreadyCited(ms, f) {
+      var raw = fullRawOf(ms.text, f);
+      return flags.some(function (x) { return x.meetingSentence === ms.text && x.meetingFactText === raw; });
+    }
+    // fee keys the draft itself denies: a negated fee is adjudicated by the
+    // dedicated zero-fee / fee-dropped rules (their flags AND their deliberate
+    // silences, e.g. a fee the meeting itself waives) — never by this pass
+    var draftZeroKeys = {};
+    draft.forEach(function (d) { d.facts.zeroFees.forEach(function (z) { draftZeroKeys[z.key] = 1; }); });
+    meeting.forEach(function (ms) {
+      if (!matchedMoneyMs[ms.index]) return;
+      ms.facts.money.forEach(function (f, fi) {
+        if (accountedMF[ms.index + ':' + fi]) return;
+        if (draftValPresent(f.value)) return;
+        if (alreadyCited(ms, f)) return;
+        flags.push(droppedAmountFlag(ms, f, 'High'));
+      });
+    });
+    // speaker turns (contiguous runs of one speaker) that contain a compared sentence
+    var blockId = [], blk = 0;
+    meeting.forEach(function (ms, i) { if (i > 0 && (ms.speaker || null) !== (meeting[i - 1].speaker || null)) blk++; blockId[i] = blk; });
+    var matchedBlocks = {};
+    meeting.forEach(function (ms) { if (matchedMs[ms.index] && ms.speaker) matchedBlocks[blockId[ms.index]] = 1; });
+    var anchorFeeKeys = {};
+    meeting.forEach(function (ms) { if (!matchedMs[ms.index]) return; ms.facts.money.forEach(function (f) { var k = draftFeeKey(ms.text, f.span); if (k) anchorFeeKeys[k] = 1; }); });
+    draft.forEach(function (d) {
+      d.facts.money.forEach(function (f) { var k = draftFeeKey(d.text, f.span); if (k) anchorFeeKeys[k] = 1; });
+      d.facts.zeroFees.forEach(function (z) { anchorFeeKeys[z.key] = 1; });
+    });
+    meeting.forEach(function (ms) {
+      if (matchedMs[ms.index]) return;
+      var turnAnchor = !!(ms.speaker && matchedBlocks[blockId[ms.index]]);
+      if (!turnAnchor && !Object.keys(anchorFeeKeys).length) return;
+      ms.facts.money.forEach(function (f) {
+        if (draftValPresent(f.value)) return;
+        var fk = draftFeeKey(ms.text, f.span);
+        if (fk && (draftZeroKeys[fk] || zeroByKey[fk])) return; // a denied fee belongs to the fee rules, not to this pass
+        if (!turnAnchor && !(fk && anchorFeeKeys[fk])) return;
+        if (alreadyCited(ms, f)) return;
+        flags.push(droppedAmountFlag(ms, f, 'Low'));
+      });
     });
 
     // --- dropped promises (Beta, Low): a meeting promise carrying money/date that the draft never mentions ---
