@@ -260,7 +260,7 @@ function wireInviteForm(){
 <script>if(location.hash==="#invite"){var _b=document.querySelector("[data-open=\"invite\"]");if(_b)_b.click();}</script>
 <script data-goatcounter="https://proofaro.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
 <script>document.querySelectorAll("[data-back]").forEach(function(a){a.addEventListener("click",function(e){try{var r=document.referrer;if(window.history.length>1&&r&&new URL(r).origin===location.origin){e.preventDefault();history.back();}}catch(_){}});});</script>
-<script src="assets/checker.js?v=326d28b"></script>
+<script src="assets/checker.js?v=ac1dca4"></script>
 <script>
 (function(){
 "use strict";
@@ -282,7 +282,21 @@ function updCounts(){
  dCount.textContent=dw+' words'+(dw>D_LIMIT?' — only the first 3,000 words will be checked':'');
  dCount.classList.toggle('over',dw>D_LIMIT);
 }
-tEl.addEventListener('input',updCounts);dEl.addEventListener('input',updCounts);
+/* A shown verdict belongs to the exact text that produced it. Any edit to
+   either box after a check invalidates it: the cards come down, the CTA and
+   the print report are cleared, and a plain "press Check again" state shows
+   instead — a stale "No mismatches found" over changed text is a false
+   all-clear. */
+function invalidateStale(){
+ if(!lastResult)return;
+ lastResult=null;visibleCount=0;dismissedFlags=new Set();
+ results.innerHTML='<p class="resultsSummary">Text changed — press Check again.</p>';
+ truncNote.innerHTML='';
+ cta.hidden=true;
+ document.getElementById('printReport').innerHTML='';
+}
+tEl.addEventListener('input',function(){updCounts();invalidateStale();});
+dEl.addEventListener('input',function(){updCounts();invalidateStale();});
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 function marked(text,span,cls){
  if(!span)return esc(text);
@@ -360,7 +374,7 @@ function runCheck(){
 }
 checkBtn.addEventListener('click',runCheck);
 sampleBtn.addEventListener('click',function(){
- tEl.value=C.SAMPLE.transcript;dEl.value=C.SAMPLE.draft;updCounts();gc('sample_used');
+ tEl.value=C.SAMPLE.transcript;dEl.value=C.SAMPLE.draft;updCounts();invalidateStale();gc('sample_used');
  tEl.scrollIntoView({behavior:'smooth',block:'center'});
 });
 results.addEventListener('click',function(e){
@@ -401,7 +415,7 @@ function wireUpload(inputId,area){
   reader.onerror=fail;
   reader.onload=function(){
    C.importFileData(file.name,reader.result).then(function(res){
-    if(res&&res.ok){area.value=res.text;updCounts();}
+    if(res&&res.ok){area.value=res.text;updCounts();invalidateStale();}
     else fail();
    },fail);
   };
