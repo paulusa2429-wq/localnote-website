@@ -860,24 +860,54 @@
     }
     // hard floor: the draft amount itself is said somewhere in the meeting
     // (same value, no currency contradiction, no period contradiction) — it
-    // must never be accused against a DIFFERENT meeting value
-    function floorHit(mf) {
-      var hit = false;
+    // must never be accused against a DIFFERENT meeting value. Returns the
+    // confirming fact (the one the draft value actually matches), or null.
+    function floorFact(mf) {
+      var hit = null;
       meeting.forEach(function (ms) {
-        ms.facts.money.forEach(function (g) {
+        ms.facts.money.forEach(function (g, gi) {
           if (hit) return;
           if (Math.abs(g.value - mf.value) >= 0.005) return;
           if (mf.currency && g.currency && mf.currency !== g.currency) return;
           if (mf.period && g.period && mf.period !== g.period && ANNUAL_FACTOR[mf.period] && ANNUAL_FACTOR[g.period]) return;
-          hit = true;
+          hit = { s: ms, fi: gi, f: g };
         });
       });
       return hit;
+    }
+    function floorHit(mf) { return !!floorFact(mf); }
+    // a folded charge is not a counterpart: the draft sentence itself folds
+    // the picked item into the draft value (a trailing ", including the
+    // blog migration" clause after the amount), and the draft value has an
+    // exact home in a different meeting fact — the picked charge belongs
+    // to the dropped-amount pass, not to an accusation against the total
+    function foldedIntoDraft(d, mf, ms, mFact, home) {
+      if (home.s.index === ms.index && home.f === mFact) return false;
+      var inc = d.facts.included;
+      if (!inc) return false;
+      var from = fullSpanOf(mf)[1];
+      if (inc.span[0] < from) return false;
+      // the separator may ride inside the amount's own raw ("$24,000,")
+      if (!/[,;]/.test(d.text.slice(from, inc.span[0])) && !/[,;]\s*$/.test(d.text.slice(0, from))) return false;
+      var clauseToks = tokens(d.text.slice(inc.span[0], inc.span[0] + 48));
+      var pDesc = descSet(ms.text, mFact.span);
+      return Object.keys(clauseToks).some(function (w) { return pDesc[w] && !CHAIN_GENERIC[w]; });
     }
     // matched-pair bookkeeping for the dropped-amount pass: which meeting
     // sentences were actually compared against, and which of their money
     // facts were accounted for by a comparison
     var matchedMs = {}, matchedMoneyMs = {}, accountedMF = {};
+    // a floor-rescued comparison accounted for the CONFIRMING fact, not the
+    // picked one: transfer the credit, so the dropped-amount pass still sees
+    // the picked fact as uncovered (it was compared, never accounted for)
+    function settleOutcome(pick, outcome) {
+      if (!outcome || !outcome.floored) return;
+      var fe = outcome.floored;
+      if (fe.s.index === pick.s.index && fe.fi === pick.fi) return;
+      delete accountedMF[pick.s.index + ':' + pick.fi];
+      accountedMF[fe.s.index + ':' + fe.fi] = 1;
+      matchedMs[fe.s.index] = 1; matchedMoneyMs[fe.s.index] = 1;
+    }
     // the comparison itself, shared by word-matched pairing and by the
     // fact-type fallback pairing (forceLow = tentative pairing)
     function compareMoney(d, mf, ms, mFact, sc, forceLow, pickDesc) {
@@ -914,9 +944,213 @@
       // the floor yields when the pairing itself is descriptor-confident: a
       // draft amount whose own words name THIS counterpart ("the total comes
       // to $2,000", matched to the meeting's total) is accused against it even
-      // if the same figure also appears elsewhere in another role (a deposit)
-      if (!(pickDesc >= 2) && floorHit(mf)) return;
+      // if the same figure also appears elsewhere in another role (a deposit).
+      // When the floor does rescue the draft value, the rescue is credited to
+      // the fact the value actually matches — the picked fact was compared
+      // but NOT accounted for, and the caller re-assigns the accounting, so
+      // a picked fact the draft never really covered (a charge folded into
+      // a total) still surfaces in the dropped-amount pass.
+      if (!(pickDesc >= 2)) {
+        var ff = floorFact(mf);
+        if (ff) return { floored: ff };
+      } else {
+        var ff2 = floorFact(mf);
+        if (ff2 && foldedIntoDraft(d, mf, ms, mFact, ff2)) return { floored: ff2 };
+      }
       addFlag({ type: 'Amount', beta: false, confidence: conf, draftIndex: d.index, draftSentence: d.text, draftSpan: mf.span, draftFactText: mf.raw, meetingSentence: ms.text, meetingSpan: mFact.span, meetingFactText: mFact.raw, timestamp: ms.timestamp, fix: fixNumFor(d.text, mf.span, mf.raw, mFact) });
+    }
+
+    /* -------- superseded values: the LAST mention of an item wins --------
+       When the same item is priced (or counted, or dated) more than once in
+       the meeting with different values, the earlier values are stages of a
+       negotiation, not confirmations: a draft that uses one is using a
+       number the meeting moved on from, and the said-elsewhere floor must
+       not rescue it. Mentions chain in document order — two mentions chain
+       when they sit in different sentences, carry no conflicting
+       identifier, and their local descriptor words do not contradict (one
+       side may refine the other or be bare; two differently-named items
+       never chain). Self-corrections were already retired by
+       applyCorrections, so chains span only mentions no marker touched. */
+    var CHAIN_GENERIC = {};
+    // generic amount vocabulary, period/unit words, and speech-act or
+    // discourse words — everything that is not an item's own name. ('fee'
+    // is deliberately absent: a fee and a deposit are different items, and
+    // mentions that name the fee must not chain onto a deposit.)
+    ['total', 'price', 'cost', 'charge', 'amount', 'quote', 'rate', 'pay', 'payment', 'bill', 'billing', 'budget', 'sum', 'worth', 'invoice', 'per', 'month', 'year', 'week', 'day', 'night', 'hour', 'quarter', 'seat', 'person', 'guest', 'head', 'ticket', 'dollar', 'euro', 'pound', 'say', 'ask', 'get', 'give', 'take', 'make', 'come', 'go', 'put', 'set', 'let', 'plus', 'also', 'confirm', 'mention', 'state', 'write', 'talk', 'need', 'want', 'agree', 'instead', 'rather', 'later', 'dont', 'cant', 'wont', 'isnt', 'arent', 'didnt', 'doesnt', 'couldnt', 'wouldnt', 'shouldnt', 'havent', 'hasnt', 'wasnt', 'werent', 'thats', 'move', 'shift', 'switch', 'change', 'reschedule', 'decide', 'choose', 'pick', 'postpone', 'delay', 'bring', 'settle'].forEach(function (w) { CHAIN_GENERIC[stem(w)] = 1; });
+    var HISTORY_TOK = {};
+    ['last', 'previous', 'previously', 'original', 'originally', 'earlier', 'prior', 'former', 'history', 'historical'].forEach(function (w) { HISTORY_TOK[stem(w)] = 1; });
+    var FINALITY_RE = /\b(okay|ok|deal|final|finally|agreed|agree|go with|locked|settled|confirmed)\b/i;
+    function chainDesc(text, span) {
+      // a tight +-28 char window, trimmed to word boundaries so a cut word
+      // never becomes a phantom descriptor
+      var lo = Math.max(0, span[0] - 28), hi = Math.min(text.length, span[1] + 28);
+      var slice = text.slice(lo, hi);
+      if (lo > 0) { var c1 = slice.indexOf(' '); if (c1 >= 0) slice = slice.slice(c1 + 1); }
+      if (hi < text.length) { var c2 = slice.lastIndexOf(' '); if (c2 >= 0) slice = slice.slice(0, c2); }
+      // apostrophes are stripped AFTER slicing (offsets stay valid):
+      // "let's" then tokenises as the stopword "lets", not as junk
+      var set = tokens(slice.replace(/['’]/g, ''));
+      var own = tokens(text.slice(span[0], span[1]).replace(/['’]/g, ''));
+      for (var w in own) delete set[w];
+      var out = {};
+      // contraction remnants ("let'" from "let's") are speech noise, never
+      // item descriptors — they must not break a chain
+      for (var w2 in set) if (!CHAIN_GENERIC[w2] && w2.indexOf("'") === -1) out[w2] = 1;
+      return out;
+    }
+    function descCompatible(a, b) {
+      var aOnly = Object.keys(a).some(function (w) { return !b[w]; });
+      var bOnly = Object.keys(b).some(function (w) { return !a[w]; });
+      return !(aOnly && bOnly);
+    }
+    function buildChains(entries) {
+      var chains = [];
+      entries.forEach(function (e) {
+        var placed = false;
+        // a mention whose value already appears in a chain restates or
+        // confirms that mention ("Okay, $9,000 it is" after the $9,000
+        // ask) — it belongs to that chain, never to a different item's
+        // chain where it would pose as that item's replacement
+        if (typeof e.f.value === 'number') {
+          for (var vi = chains.length - 1; vi >= 0 && !placed; vi--) {
+            var vc = chains[vi], vlast = vc[vc.length - 1];
+            if (vlast.s.index === e.s.index) continue;
+            if (idTier(e.s.ids, vlast.s.ids) === 0) continue;
+            if (!descCompatible(e.desc, vlast.desc)) continue;
+            var hasVal = vc.some(function (g) { return g.s.index !== e.s.index && typeof g.f.value === 'number' && Math.abs(g.f.value - e.f.value) < 0.005; });
+            if (!hasVal) continue;
+            vc.push(e); placed = true;
+          }
+        }
+        for (var ci = chains.length - 1; ci >= 0 && !placed; ci--) {
+          var ch = chains[ci], last = ch[ch.length - 1];
+          if (last.s.index === e.s.index) continue;
+          if (idTier(e.s.ids, last.s.ids) === 0) continue;
+          if (!descCompatible(e.desc, last.desc)) continue;
+          ch.push(e); placed = true; break;
+        }
+        if (!placed) chains.push([e]);
+      });
+      return chains;
+    }
+    function restatesValue(finS, finF, value) {
+      // the "final" sentence itself restates the old value alongside the
+      // new one ("Two thousand deposit, nine thousand total") — that is a
+      // summary keeping both figures alive, not a replacement
+      var lists = [finS.facts.money, finS.facts.counts];
+      for (var li = 0; li < lists.length; li++) {
+        var arr = lists[li] || [];
+        for (var i = 0; i < arr.length; i++) { if (arr[i] !== finF && Math.abs(arr[i].value - value) < 0.005) return true; }
+      }
+      return false;
+    }
+    function refOnlySkip(dDesc, eDesc, finDesc) {
+      // the draft frames the old mention as history in words the final
+      // mention dropped ("last year the fee was ...") — quoting the past
+      // is reference, not error
+      return Object.keys(dDesc).some(function (w) { return HISTORY_TOK[w] && eDesc[w] && !finDesc[w]; });
+    }
+    var moneyEntries = [];
+    meeting.forEach(function (s) { s.facts.money.forEach(function (f, fi) { moneyEntries.push({ s: s, f: f, fi: fi, desc: chainDesc(s.text, f.span) }); }); });
+    var supersededMoney = {};   // entryKey -> the final entry of its chain
+    buildChains(moneyEntries).forEach(function (ch) {
+      if (ch.length < 2) return;
+      var fin = ch[ch.length - 1], distinct = {};
+      ch.forEach(function (e) { distinct[e.f.value] = 1; });
+      if (Object.keys(distinct).length < 2) return;
+      ch.forEach(function (e) { if (Math.abs(e.f.value - fin.f.value) >= 0.005) supersededMoney[e.s.index + ':' + e.fi] = fin; });
+    });
+    var countEntriesByNoun = {};
+    meeting.forEach(function (s) {
+      s.facts.counts.forEach(function (f, fi) {
+        var desc = chainDesc(s.text, f.span);
+        delete desc[f.noun]; delete desc[stem(f.noun)];
+        (countEntriesByNoun[f.noun] = countEntriesByNoun[f.noun] || []).push({ s: s, f: f, fi: fi, desc: desc });
+      });
+    });
+    var supersededCounts = {};
+    Object.keys(countEntriesByNoun).forEach(function (noun) {
+      buildChains(countEntriesByNoun[noun]).forEach(function (ch) {
+        if (ch.length < 2) return;
+        var fin = ch[ch.length - 1], distinct = {};
+        ch.forEach(function (e) { distinct[e.f.value] = 1; });
+        if (Object.keys(distinct).length < 2) return;
+        ch.forEach(function (e) { if (Math.abs(e.f.value - fin.f.value) >= 0.005) supersededCounts[e.s.index + ':' + e.fi] = fin; });
+      });
+    });
+    var dateEntries = [];
+    meeting.forEach(function (s) { s.facts.dates.forEach(function (f, fi) { dateEntries.push({ s: s, f: f, fi: fi, desc: chainDesc(s.text, f.span) }); }); });
+    var supersededDates = {};
+    buildChains(dateEntries).forEach(function (ch) {
+      if (ch.length < 2) return;
+      var fin = ch[ch.length - 1];
+      ch.forEach(function (e) { if (dateConflict(e.f, fin.f)) supersededDates[e.s.index + ':' + e.fi] = fin; });
+    });
+    var supersededCited = {};   // final facts a supersession flag already explains
+    function moneySuperseded(mf, d) {
+      var dDesc = chainDesc(d.text, mf.span), found = null;
+      moneyEntries.forEach(function (e) {
+        if (found) return;
+        var fin = supersededMoney[e.s.index + ':' + e.fi];
+        if (!fin) return;
+        if (Math.abs(e.f.value - mf.value) >= 0.005) return;
+        if (mf.currency && e.f.currency && mf.currency !== e.f.currency) return;
+        if (mf.period && e.f.period && mf.period !== e.f.period) return;
+        if (mf.period && fin.f.period && mf.period !== fin.f.period) return;
+        if (restatesValue(fin.s, fin.f, e.f.value)) return;
+        if (refOnlySkip(dDesc, e.desc, fin.desc)) return;
+        if (!descCompatible(dDesc, fin.desc)) return;
+        var confirmed = moneyEntries.some(function (g) {
+          if (supersededMoney[g.s.index + ':' + g.fi]) return false;
+          if (Math.abs(g.f.value - mf.value) >= 0.005) return false;
+          if (mf.currency && g.f.currency && mf.currency !== g.f.currency) return false;
+          if (mf.period && g.f.period && mf.period !== g.f.period) return false;
+          return descCompatible(dDesc, g.desc);
+        });
+        if (!confirmed) found = fin;
+      });
+      return found;
+    }
+    function countSuperseded(cf, d) {
+      var dDesc = chainDesc(d.text, cf.span);
+      delete dDesc[cf.noun]; delete dDesc[stem(cf.noun)];
+      var entries = countEntriesByNoun[cf.noun] || [], found = null;
+      entries.forEach(function (e) {
+        if (found) return;
+        var fin = supersededCounts[e.s.index + ':' + e.fi];
+        if (!fin) return;
+        if (Math.abs(e.f.value - cf.value) >= 0.005) return;
+        if (restatesValue(fin.s, fin.f, e.f.value)) return;
+        if (refOnlySkip(dDesc, e.desc, fin.desc)) return;
+        if (!descCompatible(dDesc, fin.desc)) return;
+        var confirmed = entries.some(function (g) {
+          if (supersededCounts[g.s.index + ':' + g.fi]) return false;
+          if (Math.abs(g.f.value - cf.value) >= 0.005) return false;
+          return descCompatible(dDesc, g.desc);
+        });
+        if (!confirmed) found = fin;
+      });
+      return found;
+    }
+    function dateSuperseded(dtf, d) {
+      var dDesc = chainDesc(d.text, dtf.span), found = null;
+      dateEntries.forEach(function (e) {
+        if (found) return;
+        var fin = supersededDates[e.s.index + ':' + e.fi];
+        if (!fin) return;
+        if (!sameDate(e.f, dtf)) return;
+        if (!dateConflict(dtf, fin.f) || dateConsistent(fin.f, dtf)) return;
+        if (fin.s.facts.dates.some(function (g) { return g !== fin.f && sameDate(g, e.f); })) return; // the final sentence restates both dates: a summary, not a replacement
+        if (refOnlySkip(dDesc, e.desc, fin.desc)) return;
+        if (!descCompatible(dDesc, fin.desc)) return;
+        var confirmed = dateEntries.some(function (g) {
+          if (supersededDates[g.s.index + ':' + g.fi]) return false;
+          if (!sameDate(g.f, dtf) && !dateConsistent(g.f, dtf)) return false;
+          return descCompatible(dDesc, g.desc);
+        });
+        if (!confirmed) found = fin;
+      });
+      return found;
     }
 
     draft.forEach(function (d) {
@@ -947,6 +1181,18 @@
             addFlag({ type: 'Amount', beta: false, confidence: 'High', draftIndex: d.index, draftSentence: d.text, draftSpan: mf.span, draftFactText: mf.raw, meetingSentence: zh.s.text, meetingSpan: zh.z.span, meetingFactText: zh.z.raw, timestamp: zh.s.timestamp, fix: null });
             return;
           }
+          // superseded value: this amount was mentioned for the same item
+          // and then replaced later in the meeting — the last mention is
+          // the operative one, and no said-elsewhere rescue applies
+          var sup = moneySuperseded(mf, d);
+          if (sup) {
+            var supFix = (mf.period && sup.f.period && mf.period !== sup.f.period && ANNUAL_FACTOR[mf.period] && ANNUAL_FACTOR[sup.f.period])
+              ? fixNumFor(d.text, mf.span, mf.raw, { value: sup.f.value * ANNUAL_FACTOR[sup.f.period] / ANNUAL_FACTOR[mf.period], currency: sup.f.currency })
+              : fixNumFor(d.text, mf.span, mf.raw, sup.f);
+            addFlag({ type: 'Amount', beta: false, confidence: FINALITY_RE.test(sup.s.text) ? 'High' : 'Low', superseded: true, draftIndex: d.index, draftSentence: d.text, draftSpan: mf.span, draftFactText: mf.raw, meetingSentence: sup.s.text, meetingSpan: sup.f.span, meetingFactText: sup.f.raw, timestamp: sup.s.timestamp, fix: supFix });
+            supersededCited[sup.s.index + ':' + sup.fi] = 1;
+            return;
+          }
           // every unused meeting money fact is a candidate counterpart; the
           // pick prefers the same identifier tier, then the fact whose local
           // descriptors match the draft fact's ("luxury suite" pairs with the
@@ -966,7 +1212,7 @@
           if (pick && pick.sc >= 0.12) {
             usedMF[pick.s.index + ':' + pick.fi] = 1;
             matchedMs[pick.s.index] = 1; matchedMoneyMs[pick.s.index] = 1; accountedMF[pick.s.index + ':' + pick.fi] = 1;
-            compareMoney(d, mf, pick.s, pick.fact, pick.sc, false, pick.desc);
+            settleOutcome(pick, compareMoney(d, mf, pick.s, pick.fact, pick.sc, false, pick.desc));
             return;
           }
           // fallback pairing: the sentence matched nothing by shared words
@@ -978,7 +1224,7 @@
           if (pick && (totalFacts === 1 || pick.desc > 0 || pick.exact)) {
             usedMF[pick.s.index + ':' + pick.fi] = 1;
             matchedMs[pick.s.index] = 1; matchedMoneyMs[pick.s.index] = 1; accountedMF[pick.s.index + ':' + pick.fi] = 1;
-            compareMoney(d, mf, pick.s, pick.fact, pick.sc, totalFacts !== 1, pick.desc);
+            settleOutcome(pick, compareMoney(d, mf, pick.s, pick.fact, pick.sc, totalFacts !== 1, pick.desc));
             return;
           }
           // added charge: no counterpart anywhere, but an agreed total DID match
@@ -1001,6 +1247,13 @@
       // --- counts by noun ---
       if (df.counts.length) {
         df.counts.forEach(function (cf) {
+          // superseded count: the same item was counted again later with a
+          // different number — the last count is the operative one
+          var csup = countSuperseded(cf, d);
+          if (csup) {
+            addFlag({ type: 'Quantity', beta: false, confidence: FINALITY_RE.test(csup.s.text) ? 'High' : 'Low', superseded: true, draftIndex: d.index, draftSentence: d.text, draftSpan: cf.span, draftFactText: cf.raw + ' ' + cf.noun, meetingSentence: csup.s.text, meetingSpan: csup.f.span, meetingFactText: csup.f.raw + ' ' + csup.f.noun, timestamp: csup.s.timestamp, fix: fixNumFor(d.text, cf.span, cf.raw, csup.f) });
+            return;
+          }
           var cands = candsFor('counts', cf.span, function (x) { return x.noun === cf.noun; });
           cands = cands.filter(function (c) { return c.tier !== 0; }); // never compare across different identifiers
           if (!cands.length || cands[0].sc < 0.12) return;
@@ -1008,6 +1261,13 @@
           var same = cands[0].s.facts.counts.filter(function (x) { return x.noun === cf.noun; });
           var hit = same.some(function (x) { return Math.abs(x.value - cf.value) < 0.005; });
           if (hit) return;
+          // the counts floor, mirroring money: the same count for the same
+          // noun stands elsewhere in the meeting (in a mention that was not
+          // itself superseded) — never accuse it against this candidate
+          var saidElsewhere = (countEntriesByNoun[cf.noun] || []).some(function (g) {
+            return !supersededCounts[g.s.index + ':' + g.fi] && Math.abs(g.f.value - cf.value) < 0.005;
+          });
+          if (saidElsewhere) return;
           var cm2 = same[0];
           addFlag({ type: 'Quantity', beta: false, confidence: confOf(cands[0].sc), draftIndex: d.index, draftSentence: d.text, draftSpan: cf.span, draftFactText: cf.raw + ' ' + cf.noun, meetingSentence: cands[0].s.text, meetingSpan: cm2.span, meetingFactText: cm2.raw + ' ' + cm2.noun, timestamp: cands[0].s.timestamp, fix: fixNumFor(d.text, cf.span, cf.raw, cm2) });
         });
@@ -1050,6 +1310,13 @@
       // --- dates (per-fact: walk candidates until one confirms or conflicts) ---
       if (df.dates.length) {
         df.dates.forEach(function (dtf) {
+          // superseded date: the same item was re-dated later in the
+          // meeting — the last date is the operative one
+          var dsup = dateSuperseded(dtf, d);
+          if (dsup) {
+            addFlag({ type: 'Date', beta: false, confidence: FINALITY_RE.test(dsup.s.text) ? 'High' : 'Low', superseded: true, draftIndex: d.index, draftSentence: d.text, draftSpan: dtf.span, draftFactText: dtf.raw, meetingSentence: dsup.s.text, meetingSpan: dsup.f.span, meetingFactText: dsup.f.raw, timestamp: dsup.s.timestamp, fix: fixFor(d.text, dtf.span, dsup.f.raw) });
+            return;
+          }
           var cands = candsFor('dates', dtf.span);
           for (var ci = 0; ci < cands.length; ci++) {
             if (cands[ci].sc < 0.12) break;
@@ -1115,7 +1382,12 @@
         var absent = toksArr.filter(function (w) { return !tVocab[w]; });
         var hasFactFlag = flags.some(function (f) { return f.draftIndex === d.index; });
         if (!hasFactFlag && best.sc < 0.35 && toksArr.length >= 3 && absent.length >= 2) {
-          addFlag({ type: 'Promise', beta: true, confidence: absent.length >= Math.ceil(toksArr.length * 0.6) ? 'High' : 'Low', draftIndex: d.index, draftSentence: d.text, draftSpan: null, draftFactText: d.text, meetingSentence: null, meetingSpan: null, meetingFactText: null, timestamp: null, fix: null });
+          // evidence honesty: when a meeting sentence genuinely matches
+          // this claim's topic, the card quotes it — the meeting may well
+          // have said the opposite — and "nothing in the meeting record"
+          // is reserved for claims with no counterpart at all
+          var evS = (best.s && best.sc >= 0.10) ? best.s : null;
+          addFlag({ type: 'Promise', beta: true, confidence: absent.length >= Math.ceil(toksArr.length * 0.6) ? 'High' : 'Low', draftIndex: d.index, draftSentence: d.text, draftSpan: null, draftFactText: d.text, meetingSentence: evS ? evS.text : null, meetingSpan: null, meetingFactText: null, timestamp: evS ? evS.timestamp : null, fix: null });
         }
       }
     });
@@ -1146,6 +1418,7 @@
       if (!matchedMoneyMs[ms.index]) return;
       ms.facts.money.forEach(function (f, fi) {
         if (accountedMF[ms.index + ':' + fi]) return;
+        if (supersededCited[ms.index + ':' + fi]) return; // a supersession flag already explains this fact's absence
         if (draftValPresent(f.value)) return;
         if (alreadyCited(ms, f)) return;
         flags.push(droppedAmountFlag(ms, f, 'High'));
@@ -1162,15 +1435,32 @@
       d.facts.money.forEach(function (f) { var k = draftFeeKey(d.text, f.span); if (k) anchorFeeKeys[k] = 1; });
       d.facts.zeroFees.forEach(function (z) { anchorFeeKeys[z.key] = 1; });
     });
+    // inclusion claims: a draft sentence that folds an item into a total
+    // the meeting recognises ("including the blog migration") anchors the
+    // meeting's separate charge for that item — the draft says the item
+    // sits inside the matched total, the meeting priced it on top of it
+    var inclClaims = [];
+    draft.forEach(function (d) {
+      if (!d.facts.included) return;
+      if (!d.facts.money.some(function (f) { return tMoneyVals[f.value]; })) return;
+      var sp = d.facts.included.span;
+      inclClaims.push({ toks: tokens(d.text.slice(Math.max(0, sp[0] - 15), Math.min(d.text.length, sp[1] + 40))) });
+    });
     meeting.forEach(function (ms) {
       if (matchedMs[ms.index]) return;
       var turnAnchor = !!(ms.speaker && matchedBlocks[blockId[ms.index]]);
-      if (!turnAnchor && !Object.keys(anchorFeeKeys).length) return;
-      ms.facts.money.forEach(function (f) {
+      if (!turnAnchor && !Object.keys(anchorFeeKeys).length && !inclClaims.length) return;
+      ms.facts.money.forEach(function (f, fi) {
+        if (supersededCited[ms.index + ':' + fi]) return;
         if (draftValPresent(f.value)) return;
         var fk = draftFeeKey(ms.text, f.span);
         if (fk && (draftZeroKeys[fk] || zeroByKey[fk])) return; // a denied fee belongs to the fee rules, not to this pass
-        if (!turnAnchor && !(fk && anchorFeeKeys[fk])) return;
+        var inclHit = false;
+        if (inclClaims.length) {
+          var fd2 = descSet(ms.text, f.span);
+          inclHit = inclClaims.some(function (c) { return Object.keys(c.toks).some(function (w) { return fd2[w] && !CHAIN_GENERIC[w]; }); });
+        }
+        if (!turnAnchor && !(fk && anchorFeeKeys[fk]) && !inclHit) return;
         if (alreadyCited(ms, f)) return;
         flags.push(droppedAmountFlag(ms, f, 'Low'));
       });
