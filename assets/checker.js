@@ -936,7 +936,7 @@
       return /\?\s*$/.test(s.text) || /^\s*(how about|what about|can we|can you|could we|could you|shall we|maybe|perhaps|why not)\b/i.test(s.text);
     }
     var REFUSAL_RE = /^\s*(no|nope|nah)\b|\b(can't|cannot|won't|not possible|too (?:much|high|expensive|steep|low)|doesn't work|not a chance|afraid not|i'?m afraid)\b/i;
-    ['money', 'counts', 'dates'].forEach(function (kind) {
+    ['money', 'counts', 'dates', 'percent', 'terms'].forEach(function (kind) {
       meeting.forEach(function (s) { s.facts[kind].forEach(function (f) { if (factHistory(s, f)) f.history = true; }); });
     });
     /* Conditional values (pass #9): a value floated under a condition
@@ -955,7 +955,7 @@
       var before = s.text.slice(0, f.span[0]);
       return /\b(would|could|might)\b/i.test(before); // in conditional mood before the value
     }
-    ['money', 'counts', 'dates'].forEach(function (kind) {
+    ['money', 'counts', 'dates', 'percent', 'terms'].forEach(function (kind) {
       meeting.forEach(function (s) { s.facts[kind].forEach(function (f) { if (factConditional(s, f)) f.conditional = true; }); });
     });
     meeting.forEach(function (s) { s.facts.zeroFees.forEach(function (z) { if (factHistory(s, z)) z.history = true; }); });
@@ -987,8 +987,8 @@
     // meeting charges can be caught in the reverse direction too
     var feeByKey = {};
     meeting.forEach(function (s) { s.facts.money.forEach(function (f) { if (f.history || f.conditional) return; var k = draftFeeKey(s.text, f.span); if (k && !feeByKey[k]) feeByKey[k] = { s: s, f: f }; }); });
-    var tTermDays = {};
-    meeting.forEach(function (s) { s.facts.terms.forEach(function (f) { tTermDays[f.days] = 1; }); });
+    // (term days are indexed by OPERATIVE value only, after chain
+    // resolution — see operativeTermDays below)
     var agreedTotal = null;
     draft.forEach(function (ds) {
       ds.facts.money.forEach(function (f) {
@@ -1341,6 +1341,15 @@
      'works for me', 'fine by me', 'fine with me', 'sounds good', 'sounds great', 'no problem', 'that works', 'thats fine', 'thats ok', 'thats okay', 'thats good', 'thats right', 'all good', 'good for me', 'lets do it', 'i agree', 'we agree', 'sure thing', 'of course', 'will do', 'okay then', 'fine then', 'agreed then', 'yes please'
     ].forEach(function (w) { ASSENT_SET[w] = 1; });
     ['yeah', 'yes', 'ok', 'okay'].forEach(function (a) { ['sure', 'fine', 'ok', 'okay', 'done', 'agreed', 'great', 'perfect', 'right'].forEach(function (b) { ASSENT_SET[a + ' ' + b] = 1; }); });
+    // stacked assent (pass #10): a reply built ENTIRELY of assent words
+    // is agreement in any order — "Okay, fine." / "Sure, fine." /
+    // "Fine, okay." / "Okay, deal." The exact-match set above only
+    // covers the orders someone enumerated; composing from the token
+    // class covers them all. The hedge veto still runs FIRST, so a
+    // second assent word never masquerades as a hedge and a real hedge
+    // ("Hmm, fine, I'll ask") still closes nothing.
+    var ASSENT_TOKENS = {};
+    ['yes', 'yeah', 'yep', 'yup', 'ok', 'okay', 'sure', 'fine', 'done', 'agreed', 'perfect', 'great', 'right', 'correct', 'absolutely', 'definitely', 'certainly', 'understood', 'confirmed', 'deal', 'works'].forEach(function (w) { ASSENT_TOKENS[w] = 1; });
     var HEDGE_RE = /\bbut\b|\bhmm\b|\bmaybe\b|\bperhaps\b|\blet me\b|\bi'?ll\s+(ask|check|think)\b|\bthink about\b|\bnot sure\b|\bget back\b|\bneed to\s+(ask|check|confirm)\b|\bhave to\s+(ask|check|confirm)\b|\bcheck with\b|\bask\s+(with|first|around)\b|\bi wonder\b/i;
     function assentInfo(s) {
       if (!s || s.facts.money.length || s.facts.counts.length || s.facts.dates.length || s.facts.percent.length) return false;
@@ -1348,7 +1357,10 @@
       if (HEDGE_RE.test(norm)) return false;
       var t = norm.toLowerCase().replace(/['']/g, '').replace(/[!.,;:?]+/g, ' ').replace(/\s+/g, ' ').trim();
       t = t.replace(/\s+(thanks|thank you)$/, '').trim();
-      return ASSENT_SET[t] === 1;
+      if (ASSENT_SET[t] === 1) return true;
+      var words = t.split(' ').filter(function (w) { return w.length; });
+      if (words.length >= 2 && words.length <= 3 && words.every(function (w) { return ASSENT_TOKENS[w]; })) return true;
+      return false;
     }
     function supConfidence(fin) {
       // an unlabelled bare-assent closure caps the flag at Low when
@@ -1360,7 +1372,24 @@
       // decide, exactly as before.
       if (fin.assentCapped && fin.offer) return 'Low';
       if (fin.assentClosed && !fin.assentCapped) return 'High';
+      // a standing value an explicit, unhedged refusal settled (the
+      // competing offer was refused outright, no counter needed) is
+      // final on the refusal's evidence, not merely positional
+      if (fin.settledByRefusal) return 'High';
       return FINALITY_RE.test(fin.s.text) ? 'High' : 'Low';
+    }
+    /* Anaphoric cancellation (pass #10): a retraction in the sentence
+       right after a mention — "scrap that", "scratch that", "forget
+       that", "never mind", "scrap it" — withdraws that mention
+       WITHOUT naming its value ("Thursday is better." / "Scrap
+       that."). The mention is marked rejected during chain
+       resolution, so the value it displaced stands again and a later
+       assent confirms it. "Don't forget that …" is a reminder, not a
+       retraction, and never cancels. */
+    var CANCEL_RE = /\b(?:scrap|scratch|forget)\s+(?:that|it)\b|\bnever\s+mind\b/i;
+    function cancelSentence(s) {
+      if (/\b(?:don'?t|do\s+not)\s+forget\b/i.test(s.text)) return false;
+      return CANCEL_RE.test(s.text);
     }
     /* Positional resolution (pass #8, extended pass #9):
        within a chain, history mentions, conditional mentions and
@@ -1374,7 +1403,7 @@
        value — the chain is UNCERTAIN and drafts touching either value
        get a Low flag showing both lines. Agreement language never
        selects the value; it closes offers and sets confidence. */
-    function resolveChains(chains, kind, differs, supMap, uncMap, chainOf, restates) {
+    function resolveChains(chains, kind, differs, supMap, uncMap, chainOf, restates, info) {
       chains.forEach(function (ch) {
         ch.forEach(function (e) { chainOf[entryKey(e)] = ch; });
       });
@@ -1409,6 +1438,28 @@
         // carries a counter-value (the counter stands as its own
         // entry; the offer is still refused)
         if (nxt.facts[kind].some(function (g) { return !differs(g, e.f); })) return;
+        e.rejected = true; e.f.rejected = true;
+        // pass #10: a bare refusal — no counter-value of this kind in
+        // the refusing sentence, and no hedge in it either — settles
+        // the standing value outright (see supConfidence)
+        if (!nxt.facts[kind].length && !HEDGE_RE.test(nxt.text)) e.refusalClean = true;
+      });
+      /* Anaphoric cancellation (pass #10): a retraction marker in the
+         sentence immediately after a mention withdraws the LATEST
+         mention of that sentence, without naming its value. The
+         withdrawn mention is marked rejected, exactly like a refused
+         offer, so the value it displaced stands again. A retraction
+         sentence that re-asserts the same value keeps it instead. */
+      var latestBySentence = {};
+      allEntries.forEach(function (e) {
+        if (e.history || e.conditional || e.rejected) return;
+        var cur = latestBySentence[e.s.index];
+        if (!cur || e.f.span[0] > cur.f.span[0]) latestBySentence[e.s.index] = e;
+      });
+      Object.keys(latestBySentence).forEach(function (k) {
+        var e = latestBySentence[k], nxt = meeting[e.s.index + 1];
+        if (!nxt || !cancelSentence(nxt)) return;
+        if ((nxt.facts[kind] || []).some(function (g) { return !differs(g, e.f); })) return;
         e.rejected = true; e.f.rejected = true;
       });
       /* Answer-sentence bridges. Descriptor grouping can strand the
@@ -1452,9 +1503,15 @@
         });
       });
       chains.forEach(function (ch) {
+        // chain info (pass #10): the resolved shape of this chain is
+        // exported on the check result, so the estate-wide invariant
+        // can verify that no flag ever quotes a superseded entry
+        var rec = { operative: null, superseded: [], uncertain: [] };
+        if (info) info.push(rec);
         var authority = ch.filter(function (e) { return !e.history && !e.conditional && !e.rejected; });
         if (authority.length < 1) return;
         var operative = authority[authority.length - 1];
+        rec.operative = entryKey(operative);
         // bare-assent closing: the sentence immediately after the
         // operative mention is a pure assent. With speaker labels on
         // both sides it must come from a DIFFERENT speaker than the
@@ -1469,6 +1526,10 @@
             operative.assentCapped = !(spA && spB);
           }
         }
+        // refusal-settled (pass #10): this operative stands because a
+        // competing offer was refused outright — explicit, unhedged,
+        // no counter needed. Flags resting on it carry full finality.
+        if (!operative.offer && ch.some(function (e) { return e.rejected && e.refusalClean && differs(e.f, operative.f); })) operative.settledByRefusal = true;
         if (operative.offer && !operative.assentClosed) {
           var standing = null;
           authority.forEach(function (e) { if (!e.offer && differs(e.f, operative.f)) standing = e; });
@@ -1484,6 +1545,7 @@
             ch.forEach(function (e) {
               if (e.rejected && differs(e.f, operative.f) && differs(e.f, standing.f)) uncMap[entryKey(e)] = { standing: standing, offer: operative };
             });
+            rec.uncertain = [entryKey(standing), entryKey(operative)];
             return;
           }
         }
@@ -1504,6 +1566,7 @@
             if (e.rejected && differs(e.f, operative.f)) supMap[entryKey(e)] = operative;
           });
         }
+        ch.forEach(function (e) { if (supMap[entryKey(e)] === operative) rec.superseded.push(entryKey(e)); });
       });
     }
     var moneyEntries = [];
@@ -1511,7 +1574,8 @@
     var supersededMoney = {};   // entryKey -> the operative entry of its chain
     var uncertainMoney = {};    // entryKey -> { standing, offer } for chains with no honest final value
     var chainOfMoney = {};
-    resolveChains(buildChains(moneyEntries), 'money', function (a, b) { return Math.abs(a.value - b.value) >= 0.005; }, supersededMoney, uncertainMoney, chainOfMoney, function (e, op) { return restatesValue(op.s, op.f, e.f.value); });
+    var infoMoney = [];
+    resolveChains(buildChains(moneyEntries), 'money', function (a, b) { return Math.abs(a.value - b.value) >= 0.005; }, supersededMoney, uncertainMoney, chainOfMoney, function (e, op) { return restatesValue(op.s, op.f, e.f.value); }, infoMoney);
     var countEntriesByNoun = {};
     meeting.forEach(function (s) {
       s.facts.counts.forEach(function (f, fi) {
@@ -1523,15 +1587,46 @@
     var supersededCounts = {};
     var uncertainCounts = {};
     var chainOfCounts = {};
+    var infoCounts = [];
     Object.keys(countEntriesByNoun).forEach(function (noun) {
-      resolveChains(buildChains(countEntriesByNoun[noun]), 'counts', function (a, b) { return Math.abs(a.value - b.value) >= 0.005; }, supersededCounts, uncertainCounts, chainOfCounts, function (e, op) { return restatesValue(op.s, op.f, e.f.value); });
+      resolveChains(buildChains(countEntriesByNoun[noun]), 'counts', function (a, b) { return Math.abs(a.value - b.value) >= 0.005; }, supersededCounts, uncertainCounts, chainOfCounts, function (e, op) { return restatesValue(op.s, op.f, e.f.value); }, infoCounts);
     });
     var dateEntries = [];
     meeting.forEach(function (s) { s.facts.dates.forEach(function (f, fi) { dateEntries.push({ s: s, f: f, fi: fi, desc: chainDesc(s.text, f.span, allFactSpans(s)), offer: offerSentence(s), history: !!f.history, conditional: !!f.conditional }); }); });
     var supersededDates = {};
     var uncertainDates = {};
     var chainOfDates = {};
-    resolveChains(buildChains(dateEntries), 'dates', function (a, b) { return dateConflict(a, b); }, supersededDates, uncertainDates, chainOfDates, function (e, op) { return op.s.facts.dates.some(function (g) { return g !== op.f && sameDate(g, e.f); }); });
+    var infoDates = [];
+    resolveChains(buildChains(dateEntries), 'dates', function (a, b) { return dateConflict(a, b); }, supersededDates, uncertainDates, chainOfDates, function (e, op) { return op.s.facts.dates.some(function (g) { return g !== op.f && sameDate(g, e.f); }); }, infoDates);
+    /* Percent and payment terms join chain resolution (pass #10):
+       until now a renegotiated percent never chained at all — the
+       comparison quoted the FIRST percent it paired with, so a
+       settled 12% was flagged against the opening 10% (a backwards
+       flag on a correct draft), and a superseded "net 30" was
+       silently accepted wherever it appeared. Both kinds now get the
+       full machinery: standing / offer / pending / assent / refusal /
+       history / operative, keyed by descriptor like money. */
+    var percentEntries = [];
+    meeting.forEach(function (s) { s.facts.percent.forEach(function (f, fi) { percentEntries.push({ s: s, f: f, fi: fi, desc: chainDesc(s.text, f.span, allFactSpans(s)), offer: offerSentence(s), history: !!f.history, conditional: !!f.conditional }); }); });
+    var supersededPercent = {};
+    var uncertainPercent = {};
+    var chainOfPercent = {};
+    var infoPercent = [];
+    function restatesPercent(op, value) { return op.s.facts.percent.some(function (g) { return g !== op.f && Math.abs(g.value - value) < 0.005; }); }
+    resolveChains(buildChains(percentEntries), 'percent', function (a, b) { return Math.abs(a.value - b.value) >= 0.005; }, supersededPercent, uncertainPercent, chainOfPercent, function (e, op) { return restatesPercent(op, e.f.value); }, infoPercent);
+    var termEntries = [];
+    meeting.forEach(function (s) { s.facts.terms.forEach(function (f, fi) { termEntries.push({ s: s, f: f, fi: fi, desc: chainDesc(s.text, f.span, allFactSpans(s)), offer: offerSentence(s), history: !!f.history, conditional: !!f.conditional }); }); });
+    var supersededTerms = {};
+    var uncertainTerms = {};
+    var chainOfTerms = {};
+    var infoTerms = [];
+    function restatesTerm(op, days) { return op.s.facts.terms.some(function (g) { return g !== op.f && g.days === days; }); }
+    resolveChains(buildChains(termEntries), 'terms', function (a, b) { return a.days !== b.days; }, supersededTerms, uncertainTerms, chainOfTerms, function (e, op) { return restatesTerm(op, e.f.days); }, infoTerms);
+    // term days the meeting actually settled on — the only ones a
+    // draft may use without a comparison (a superseded or refused
+    // term said somewhere in the meeting is NOT an acceptance)
+    var operativeTermDays = {};
+    termEntries.forEach(function (e) { if (!e.history && !e.rejected && !e.conditional && !supersededTerms[entryKey(e)] && !uncertainTerms[entryKey(e)]) operativeTermDays[e.f.days] = 1; });
     var supersededCited = {};   // final facts a supersession flag already explains
     function moneySuperseded(mf, d) {
       var dDesc = chainDesc(d.text, mf.span, allFactSpans(d)), found = null;
@@ -1651,6 +1746,70 @@
       });
       return found;
     }
+    function percentSuperseded(pf, d) {
+      var dDesc = chainDesc(d.text, pf.span, allFactSpans(d)), found = null;
+      percentEntries.forEach(function (e) {
+        if (found) return;
+        var fin = supersededPercent[entryKey(e)];
+        if (!fin) return;
+        if (Math.abs(e.f.value - pf.value) >= 0.005) return;
+        if (restatesPercent(fin, e.f.value)) return;
+        if (refOnlySkip(dDesc, e.desc, fin.desc)) return;
+        if (chainContradicts(dDesc, e, chainOfPercent)) return;
+        var confirmed = percentEntries.some(function (g) {
+          if (supersededPercent[entryKey(g)]) return false;
+          if (g.history || g.rejected || g.conditional) return false;
+          if (Math.abs(g.f.value - pf.value) >= 0.005) return false;
+          return descCompatible(dDesc, g.desc);
+        });
+        if (!confirmed) found = fin;
+      });
+      return found;
+    }
+    function percentUncertain(pf, d) {
+      var dDesc = chainDesc(d.text, pf.span, allFactSpans(d)), found = null;
+      percentEntries.forEach(function (e) {
+        if (found) return;
+        var unc = uncertainPercent[entryKey(e)];
+        if (!unc) return;
+        if (Math.abs(e.f.value - pf.value) >= 0.005) return;
+        if (chainContradicts(dDesc, e, chainOfPercent)) return;
+        found = unc;
+      });
+      return found;
+    }
+    function termSuperseded(tf, d) {
+      var dDesc = chainDesc(d.text, tf.span, allFactSpans(d)), found = null;
+      termEntries.forEach(function (e) {
+        if (found) return;
+        var fin = supersededTerms[entryKey(e)];
+        if (!fin) return;
+        if (e.f.days !== tf.days) return;
+        if (restatesTerm(fin, e.f.days)) return;
+        if (refOnlySkip(dDesc, e.desc, fin.desc)) return;
+        if (chainContradicts(dDesc, e, chainOfTerms)) return;
+        var confirmed = termEntries.some(function (g) {
+          if (supersededTerms[entryKey(g)]) return false;
+          if (g.history || g.rejected || g.conditional) return false;
+          if (g.f.days !== tf.days) return false;
+          return descCompatible(dDesc, g.desc);
+        });
+        if (!confirmed) found = fin;
+      });
+      return found;
+    }
+    function termUncertain(tf, d) {
+      var dDesc = chainDesc(d.text, tf.span, allFactSpans(d)), found = null;
+      termEntries.forEach(function (e) {
+        if (found) return;
+        var unc = uncertainTerms[entryKey(e)];
+        if (!unc) return;
+        if (e.f.days !== tf.days) return;
+        if (chainContradicts(dDesc, e, chainOfTerms)) return;
+        found = unc;
+      });
+      return found;
+    }
 
     draft.forEach(function (d) {
       var df = d.facts;
@@ -1759,12 +1918,37 @@
       // --- percent (reported as Quantity) ---
       if (df.percent.length) {
         df.percent.forEach(function (pf) {
+          // superseded percent: the same item was re-quoted later in
+          // the meeting — the chain's operative percent is the truth
+          var psup = percentSuperseded(pf, d);
+          if (psup) {
+            addFlag({ type: 'Quantity', beta: false, confidence: supConfidence(psup), superseded: true, draftIndex: d.index, draftSentence: d.text, draftSpan: pf.span, draftFactText: pf.raw, meetingSentence: psup.s.text, meetingSpan: psup.f.span, meetingFactText: psup.f.raw, timestamp: psup.s.timestamp, fix: fixNumFor(d.text, pf.span, pf.raw, psup.f) });
+            return;
+          }
+          // uncertain chain (see money): Low flag, both lines shown
+          var punc = percentUncertain(pf, d);
+          if (punc) {
+            addFlag({ type: 'Quantity', beta: false, confidence: 'Low', uncertain: true, draftIndex: d.index, draftSentence: d.text, draftSpan: pf.span, draftFactText: pf.raw, meetingSentence: punc.offer.s.text, meetingSpan: punc.offer.f.span, meetingFactText: punc.offer.f.raw, timestamp: punc.offer.s.timestamp, earlierSentence: punc.standing.s.text, earlierSpan: punc.standing.f.span, earlierFactText: punc.standing.f.raw, earlierTimestamp: punc.standing.s.timestamp, fix: null });
+            return;
+          }
           var cands = candsFor('percent', pf.span);
-          if (!cands.length || cands[0].sc < 0.12) return;
-          matchedMs[cands[0].s.index] = 1;
-          var pm = cands[0].s.facts.percent[0];
-          if (Math.abs(pm.value - pf.value) < 0.005) return;
-          addFlag({ type: 'Quantity', beta: false, confidence: confOf(cands[0].sc), draftIndex: d.index, draftSentence: d.text, draftSpan: pf.span, draftFactText: pf.raw, meetingSentence: cands[0].s.text, meetingSpan: pm.span, meetingFactText: pm.raw, timestamp: cands[0].s.timestamp, fix: fixNumFor(d.text, pf.span, pf.raw, pm) });
+          for (var pci = 0; pci < cands.length; pci++) {
+            if (cands[pci].sc < 0.12) break;
+            // only operative facts speak for the meeting: history,
+            // refused and floated percents are not counterparts
+            var authP = cands[pci].s.facts.percent.filter(function (x) { return !x.history && !x.rejected && !x.conditional; });
+            if (!authP.length) continue;
+            matchedMs[cands[pci].s.index] = 1;
+            if (authP.some(function (x) { return Math.abs(x.value - pf.value) < 0.005; })) return;
+            var pm = authP[0], pmS = cands[pci].s;
+            // never quote a superseded percent as the meeting's
+            // truth: the chain's operative mention is the counterpart
+            var pFin = supersededPercent[cands[pci].s.index + ':' + cands[pci].s.facts.percent.indexOf(pm)];
+            if (pFin) { pm = pFin.f; pmS = pFin.s; }
+            if (Math.abs(pm.value - pf.value) < 0.005) return; // the draft matches the operative value
+            addFlag({ type: 'Quantity', beta: false, confidence: confOf(cands[pci].sc), draftIndex: d.index, draftSentence: d.text, draftSpan: pf.span, draftFactText: pf.raw, meetingSentence: pmS.text, meetingSpan: pm.span, meetingFactText: pm.raw, timestamp: pmS.timestamp, fix: fixNumFor(d.text, pf.span, pf.raw, pm) });
+            return;
+          }
         });
       }
       // --- counts by noun ---
@@ -1837,13 +2021,37 @@
       // --- payment terms ("net 30" vs "net 60") ---
       if (df.terms.length) {
         df.terms.forEach(function (tf) {
-          if (tTermDays[tf.days]) return; // the same term is said somewhere in the meeting
+          // superseded term: the payment window was renegotiated —
+          // the chain's operative term is the meeting's truth
+          var tsup = termSuperseded(tf, d);
+          if (tsup) {
+            addFlag({ type: 'Date', beta: false, confidence: supConfidence(tsup), superseded: true, draftIndex: d.index, draftSentence: d.text, draftSpan: tf.span, draftFactText: tf.raw, meetingSentence: tsup.s.text, meetingSpan: tsup.f.span, meetingFactText: tsup.f.raw, timestamp: tsup.s.timestamp, fix: fixFor(d.text, tf.span, tsup.f.raw) });
+            return;
+          }
+          // uncertain chain (see money): Low flag, both lines shown
+          var tunc = termUncertain(tf, d);
+          if (tunc) {
+            addFlag({ type: 'Date', beta: false, confidence: 'Low', uncertain: true, draftIndex: d.index, draftSentence: d.text, draftSpan: tf.span, draftFactText: tf.raw, meetingSentence: tunc.offer.s.text, meetingSpan: tunc.offer.f.span, meetingFactText: tunc.offer.f.raw, timestamp: tunc.offer.s.timestamp, earlierSentence: tunc.standing.s.text, earlierSpan: tunc.standing.f.span, earlierFactText: tunc.standing.f.raw, earlierTimestamp: tunc.standing.s.timestamp, fix: null });
+            return;
+          }
+          if (operativeTermDays[tf.days]) return; // the settled term is said somewhere in the meeting
           var cands = candsFor('terms', tf.span);
-          if (!cands.length || cands[0].sc < 0.12) return;
-          matchedMs[cands[0].s.index] = 1;
-          var tmf = cands[0].s.facts.terms[0];
-          if (tmf.days === tf.days) return;
-          addFlag({ type: 'Date', beta: false, confidence: confOf(cands[0].sc), draftIndex: d.index, draftSentence: d.text, draftSpan: tf.span, draftFactText: tf.raw, meetingSentence: cands[0].s.text, meetingSpan: tmf.span, meetingFactText: tmf.raw, timestamp: cands[0].s.timestamp, fix: fixFor(d.text, tf.span, tmf.raw) });
+          for (var tci = 0; tci < cands.length; tci++) {
+            if (cands[tci].sc < 0.12) break;
+            // only operative facts speak for the meeting: history,
+            // refused and floated terms are not counterparts
+            var authT = cands[tci].s.facts.terms.filter(function (x) { return !x.history && !x.rejected && !x.conditional; });
+            if (!authT.length) continue;
+            matchedMs[cands[tci].s.index] = 1;
+            var tmf = authT[0], tmS = cands[tci].s;
+            // never quote a superseded term as the meeting's truth:
+            // the chain's operative mention is the counterpart
+            var tFin = supersededTerms[cands[tci].s.index + ':' + cands[tci].s.facts.terms.indexOf(tmf)];
+            if (tFin) { tmf = tFin.f; tmS = tFin.s; }
+            if (tmf.days === tf.days) return;
+            addFlag({ type: 'Date', beta: false, confidence: confOf(cands[tci].sc), draftIndex: d.index, draftSentence: d.text, draftSpan: tf.span, draftFactText: tf.raw, meetingSentence: tmS.text, meetingSpan: tmf.span, meetingFactText: tmf.raw, timestamp: tmS.timestamp, fix: fixFor(d.text, tf.span, tmf.raw) });
+            return;
+          }
         });
       }
       // --- support windows / explicit limits ---
@@ -2023,6 +2231,11 @@
     // silences, e.g. a fee the meeting itself waives) — never by this pass
     var draftZeroKeys = {};
     draft.forEach(function (d) { d.facts.zeroFees.forEach(function (z) { draftZeroKeys[z.key] = 1; }); });
+    // pass #10: missingness is judged on OPERATIVE entries only — a
+    // superseded entry never generates a missing flag itself; when
+    // the draft omits the operative value too, the OPERATIVE is what
+    // is missing, and it (never the old value) is what gets quoted
+    var missingDone = {};
     meeting.forEach(function (ms) {
       if (!matchedMoneyMs[ms.index]) return;
       ms.facts.money.forEach(function (f, fi) {
@@ -2030,7 +2243,14 @@
         if (supersededCited[ms.index + ':' + fi]) return; // a supersession flag already explains this fact's absence
         if (f.history || f.rejected || f.conditional) return; // the past, refused offers and floated values are not dropped commitments
         var supFinT1 = supersededMoney[ms.index + ':' + fi];
-        if (supFinT1 && draftValPresent(supFinT1.f.value)) return; // replaced later, and the draft carries the final value: explained, not missing
+        if (supFinT1) {
+          var opKey1 = entryKey(supFinT1);
+          if (!draftValPresent(supFinT1.f.value) && !accountedMF[opKey1] && !missingDone[opKey1] && !alreadyCited(supFinT1.s, supFinT1.f)) {
+            missingDone[opKey1] = 1;
+            flags.push(droppedAmountFlag(supFinT1.s, supFinT1.f, 'High'));
+          }
+          return; // replaced later: this entry itself is never missing
+        }
         if (draftValPresent(f.value)) return;
         if (alreadyCited(ms, f)) return;
         flags.push(droppedAmountFlag(ms, f, 'High'));
@@ -2065,9 +2285,6 @@
       ms.facts.money.forEach(function (f, fi) {
         if (supersededCited[ms.index + ':' + fi]) return;
         if (f.history || f.rejected || f.conditional) return; // the past, refused offers and floated values are not dropped commitments
-        var supFinT2 = supersededMoney[ms.index + ':' + fi];
-        if (supFinT2 && draftValPresent(supFinT2.f.value)) return; // replaced later, and the draft carries the final value: explained, not missing
-        if (draftValPresent(f.value)) return;
         var fk = draftFeeKey(ms.text, f.span);
         if (fk && (draftZeroKeys[fk] || zeroByKey[fk])) return; // a denied fee belongs to the fee rules, not to this pass
         var inclHit = false;
@@ -2076,6 +2293,20 @@
           inclHit = inclClaims.some(function (c) { return Object.keys(c.toks).some(function (w) { return fd2[w] && !CHAIN_GENERIC[w]; }); });
         }
         if (!turnAnchor && !(fk && anchorFeeKeys[fk]) && !inclHit) return;
+        var supFinT2 = supersededMoney[ms.index + ':' + fi];
+        if (supFinT2) {
+          // pass #10: judged by the operative entry, as in tier 1 —
+          // this entry itself never generates a missing flag
+          var opKey2 = entryKey(supFinT2);
+          var fkOp = draftFeeKey(supFinT2.s.text, supFinT2.f.span);
+          if (fkOp && draftZeroKeys[fkOp]) return;
+          if (!draftValPresent(supFinT2.f.value) && !accountedMF[opKey2] && !missingDone[opKey2] && !alreadyCited(supFinT2.s, supFinT2.f)) {
+            missingDone[opKey2] = 1;
+            flags.push(droppedAmountFlag(supFinT2.s, supFinT2.f, 'Low'));
+          }
+          return;
+        }
+        if (draftValPresent(f.value)) return;
         if (alreadyCited(ms, f)) return;
         flags.push(droppedAmountFlag(ms, f, 'Low'));
       });
@@ -2141,7 +2372,11 @@
     return {
       flags: flags,
       stats: { transcriptWords: tWords, draftWords: dWords, truncatedTranscript: tTrunc, truncatedDraft: dTrunc, meetingSentences: meeting.length, draftSentences: draft.length },
-      meeting: meeting, draft: draft
+      meeting: meeting, draft: draft,
+      // resolved chains per kind (pass #10): [{operative, superseded,
+      // uncertain}] with entry keys "sentenceIndex:factIndex" — the
+      // estate-wide invariant verifies flags against this
+      chains: { money: infoMoney, counts: infoCounts, dates: infoDates, percent: infoPercent, terms: infoTerms }
     };
   }
 
