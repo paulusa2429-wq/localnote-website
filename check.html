@@ -87,6 +87,9 @@ textarea.ck:focus{outline:3px solid #b277ef;outline-offset:1px}
 .flagBtns{display:flex;gap:10px;margin-top:11px;flex-wrap:wrap}
 .smallBtn{border:1px solid #d8c7ed;background:#fff;color:#5215ac;border-radius:10px;padding:8px 13px;font-weight:700;font-size:13px;cursor:pointer;font:inherit;font-size:13px}
 .smallBtn:hover{background:#f7f2ff}
+.wrongBtn{color:#81768d;font-weight:600}
+.wrongBtn:hover{background:#f7f2ff;color:#5215ac}
+.wrongBtn.done,.wrongBtn.done:hover{background:#faf8fd;color:#a293b5;border-color:#ece5f7;cursor:default}
 .cleanCard{border:1px solid #bfe6cd;background:#f2fbf5;border-radius:16px;padding:20px 22px;margin:14px 0}
 .cleanCard p{margin:0;font-size:16.5px;color:#14532d}
 .worthFold{margin:16px 0 4px}
@@ -145,7 +148,7 @@ textarea.ck:focus{outline:3px solid #b277ef;outline-offset:1px}
 </div>
 
 <h2>Privacy you can verify</h2>
-<p>Do not take the sentence above on trust — check it yourself. Pressing <b>Check</b> sends none of your text anywhere: the comparison happens entirely in this tab, and the PDF is printed by your own browser. The only requests a check triggers are a few small counting beacons to our analytics, named after the event — a check ran, a catch was found — never a word you pasted. When the page first opens, it loads only its own files: this page, the checker code, the fonts and the logo.</p>
+<p>Do not take the sentence above on trust — check it yourself. Pressing <b>Check</b> sends none of your text anywhere: the comparison happens entirely in this tab, and the PDF is printed by your own browser. The only requests a check triggers are a few small counting beacons to our analytics, named after the event — a check ran, a catch was found — never a word you pasted. Tapping “Was this wrong?” on a result card sends one more count of the same kind — that a card was marked wrong — and nothing else. When the page first opens, it loads only its own files: this page, the checker code, the fonts and the logo.</p>
 <p>Check us: open your browser's Network tab, clear the list, then press <b>Check</b>. You will see those counting beacons — and nothing that carries your words.</p>
 
 <h2>What it catches</h2>
@@ -275,7 +278,7 @@ checkBtn=document.getElementById('checkBtn'),sampleBtn=document.getElementById('
 progress=document.getElementById('progress'),bar=document.getElementById('progressBar'),
 results=document.getElementById('results'),cta=document.getElementById('resultsCta'),
 truncNote=document.getElementById('truncNote');
-var T_LIMIT=40000,D_LIMIT=3000,lastResult=null,visibleCount=0,dismissedFlags=new Set();
+var T_LIMIT=40000,D_LIMIT=3000,lastResult=null,visibleCount=0,dismissedFlags=new Set(),wrongFlags=new Set();
 function visibleFlags(){return lastResult?lastResult.flags.filter(function(f,i){return !dismissedFlags.has(i)}):[];}
 function gc(name){try{if(window.goatcounter&&window.goatcounter.count)window.goatcounter.count({path:'events/'+name,title:name,event:true});}catch(e){}}
 function words(t){return (String(t||'').trim().match(/\S+/g)||[]).length}
@@ -293,7 +296,7 @@ function updCounts(){
    all-clear. */
 function invalidateStale(){
  if(!lastResult)return;
- lastResult=null;visibleCount=0;dismissedFlags=new Set();
+ lastResult=null;visibleCount=0;dismissedFlags=new Set();wrongFlags=new Set();
  results.innerHTML='<p class="resultsSummary">Text changed — press Check again.</p>';
  truncNote.innerHTML='';
  cta.hidden=true;
@@ -333,11 +336,12 @@ function cardHTML(f,i){
  }
  var btns='<div class="flagBtns">';
  if(f.fix)btns+='<button class="smallBtn" type="button" data-copy="'+i+'">Copy fix</button>';
- btns+='<button class="smallBtn" type="button" data-dismiss="'+i+'">Not a mismatch</button></div>';
+ btns+='<button class="smallBtn" type="button" data-dismiss="'+i+'">Not a mismatch</button>';
+ btns+='<button class="smallBtn wrongBtn" type="button" data-wrong="'+i+'">Was this wrong?</button></div>';
  return '<article class="flagCard'+(f.confidence==='Low'?' low':'')+'" data-card="'+i+'">'+top+lines+btns+'</article>';
 }
 function render(res){
- lastResult=res; dismissedFlags=new Set();
+ lastResult=res; dismissedFlags=new Set(); wrongFlags=new Set();
  var flags=res.flags,high=flags.filter(function(f){return f.confidence==='High'||f.negotiated||f.capped}),low=flags.filter(function(f){return !(f.confidence==='High'||f.negotiated||f.capped)});
  visibleCount=flags.length;
  var html='';
@@ -397,7 +401,7 @@ sampleBtn.addEventListener('click',function(){
  tEl.scrollIntoView({behavior:'smooth',block:'center'});
 });
 results.addEventListener('click',function(e){
- var cp=e.target.closest('[data-copy]'),ds=e.target.closest('[data-dismiss]');
+ var cp=e.target.closest('[data-copy]'),ds=e.target.closest('[data-dismiss]'),wg=e.target.closest('[data-wrong]');
  if(cp){
   var f=lastResult.flags[+cp.dataset.copy];if(!f||!f.fix)return;
   function done(){cp.textContent='Copied';setTimeout(function(){cp.textContent='Copy fix';},1600);}
@@ -408,6 +412,14 @@ results.addEventListener('click',function(e){
   var card=ds.closest('[data-card]');
   gc('not_a_mismatch');
   if(card){card.remove();visibleCount--;dismissedFlags.add(+ds.dataset.dismiss);if(lastResult)buildPrint(lastResult,visibleFlags());var s=document.getElementById('resultsSummary');if(s)s.textContent=visibleCount===0?'No mismatches found.':visibleCount+(visibleCount===1?' mismatch':' mismatches')+' found.';}
+ }
+ if(wg){
+  var wi=+wg.dataset.wrong;
+  if(!wrongFlags.has(wi)&&lastResult&&lastResult.flags[wi]){
+   wrongFlags.add(wi);
+   gc('flag_wrong/'+lastResult.flags[wi].type.toLowerCase());
+   wg.textContent='Thanks — noted';wg.disabled=true;wg.classList.add('done');
+  }
  }
 });
 document.getElementById('ctaInvite').addEventListener('click',function(){gc('invite_clicked');});
