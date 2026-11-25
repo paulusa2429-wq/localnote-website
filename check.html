@@ -65,6 +65,9 @@ textarea.ck:focus{outline:3px solid #b277ef;outline-offset:1px}
 .btn.secondary{background:#fff;color:#5b21b6;border:1.5px solid #d9c7f5;box-shadow:none}
 .btn.secondary:hover{color:#5b21b6;background:#f7f2ff}
 .privacyLine{font-size:13px;color:#5b5964;margin:6px 0 0}
+.honestyLine{font-size:13.5px;color:#3d3654;margin:10px 0 0;font-weight:600}
+.seqStep{margin:2px 0 2px 14px}
+.seqStep .seqSent{color:#5b5964}
 .progress{height:6px;background:#eee5fb;border-radius:99px;overflow:hidden;margin:16px 0 0}
 .progress .bar{height:100%;width:0;background:linear-gradient(90deg,#862cf3,#5215ac);border-radius:99px;transition:width .45s ease}
 .truncNote{font-size:13.5px;color:#8f1d12;background:#fdf1ef;border:1px solid #f3d2cc;border-radius:12px;padding:11px 14px;margin:14px 0 0;line-height:1.55}
@@ -125,6 +128,7 @@ textarea.ck:focus{outline:3px solid #b277ef;outline-offset:1px}
 <button class="btn big" id="checkBtn" type="button">Check</button>
 <button class="btn big secondary" id="sampleBtn" type="button">Try a sample</button>
 </div>
+<p class="honestyLine">Covers amounts, dates, counts, names and promises. For negotiated numbers it shows the sequence, so check the final value yourself.</p>
 <p class="privacyLine">Your text never leaves this browser. Want proof? Open the Network tab and watch.</p>
 <div class="progress" id="progress" hidden><div class="bar" id="progressBar"></div></div>
 <div id="truncNote"></div>
@@ -260,7 +264,7 @@ function wireInviteForm(){
 <script>if(location.hash==="#invite"){var _b=document.querySelector("[data-open=\"invite\"]");if(_b)_b.click();}</script>
 <script data-goatcounter="https://proofaro.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
 <script>document.querySelectorAll("[data-back]").forEach(function(a){a.addEventListener("click",function(e){try{var r=document.referrer;if(window.history.length>1&&r&&new URL(r).origin===location.origin){e.preventDefault();history.back();}}catch(_){}});});</script>
-<script src="assets/checker.js?v=722bd06"></script>
+<script src="assets/checker.js?v=62eb23a"></script>
 <script>
 (function(){
 "use strict";
@@ -311,10 +315,15 @@ function cardHTML(f,i){
  }else if(f.draftSentence){
   lines+='<p class="flagLine"><span class="flagLabel">Draft says:</span> '+marked(f.draftSentence,f.draftSpan,'')+'</p>';
  }
- if(f.superseded){
+ if(f.negotiated){
+  lines+='<p class="flagLine"><span class="flagLabel">This was negotiated — check the final number</span></p>';
+  (f.sequence||[]).forEach(function(st){
+   lines+='<p class="flagLine seqStep"><b>'+esc(st.text)+'</b>'+(st.timestamp?' <span class="ts">('+esc(st.timestamp)+')</span>':'')+' <span class="seqSent">'+esc(st.sentence)+'</span></p>';
+  });
+ }else if(f.superseded){
   lines+='<p class="flagLine"><span class="flagLabel">Changed later in the meeting:</span> final was '+esc(f.meetingFactText||'')+(f.timestamp?' <span class="ts">('+esc(f.timestamp)+')</span>':'')+'</p>';
  }
- if(f.uncertain&&f.earlierSentence){
+ if(f.negotiated){}else if(f.uncertain&&f.earlierSentence){
   lines+='<p class="flagLine"><span class="flagLabel">Earlier in the meeting:</span> '+marked(f.earlierSentence,f.earlierSpan,'mkM')+(f.earlierTimestamp?' <span class="ts">('+esc(f.earlierTimestamp)+')</span>':'')+'</p>';
   lines+='<p class="flagLine"><span class="flagLabel">Later in the meeting:</span> '+marked(f.meetingSentence,f.meetingSpan,'mkM')+(f.timestamp?' <span class="ts">('+esc(f.timestamp)+')</span>':'')+'</p>';
  }else if(f.meetingSentence){
@@ -329,7 +338,7 @@ function cardHTML(f,i){
 }
 function render(res){
  lastResult=res; dismissedFlags=new Set();
- var flags=res.flags,high=flags.filter(function(f){return f.confidence==='High'}),low=flags.filter(function(f){return f.confidence!=='High'});
+ var flags=res.flags,high=flags.filter(function(f){return f.confidence==='High'||f.negotiated||f.capped}),low=flags.filter(function(f){return !(f.confidence==='High'||f.negotiated||f.capped)});
  visibleCount=flags.length;
  var html='';
  if(!flags.length){
@@ -357,8 +366,10 @@ function buildPrint(res,flags){
   h+='<div class="prFlag"><p><b>'+TYPE_LABEL[f.type]+(f.beta?' · Beta':' · '+f.confidence+' confidence')+'</b></p>';
   if(f.draftSentence)h+='<p>Draft says: '+esc(f.draftSentence)+'</p>';
   if(f.dropped)h+='<p>Missing from your draft: this was said in the meeting but never made it into the draft.</p>';
-  if(f.superseded)h+='<p>Changed later in the meeting: final was '+esc(f.meetingFactText||'')+(f.timestamp?' ('+esc(f.timestamp)+')':'')+'</p>';
-  if(f.uncertain&&f.earlierSentence){h+='<p>Earlier in the meeting: '+esc(f.earlierSentence)+(f.earlierTimestamp?' ('+esc(f.earlierTimestamp)+')':'')+'</p><p>Later in the meeting: '+esc(f.meetingSentence)+(f.timestamp?' ('+esc(f.timestamp)+')':'')+'</p>';}
+  if(f.negotiated){h+='<p>This was negotiated — check the final number</p>';(f.sequence||[]).forEach(function(st){h+='<p>'+esc(st.text)+(st.timestamp?' ('+esc(st.timestamp)+')':'')+' — '+esc(st.sentence)+'</p>';});}
+  else if(f.superseded)h+='<p>Changed later in the meeting: final was '+esc(f.meetingFactText||'')+(f.timestamp?' ('+esc(f.timestamp)+')':'')+'</p>';
+  if(f.negotiated){}
+  else if(f.uncertain&&f.earlierSentence){h+='<p>Earlier in the meeting: '+esc(f.earlierSentence)+(f.earlierTimestamp?' ('+esc(f.earlierTimestamp)+')':'')+'</p><p>Later in the meeting: '+esc(f.meetingSentence)+(f.timestamp?' ('+esc(f.timestamp)+')':'')+'</p>';}
   else if(f.meetingSentence)h+='<p>Meeting said: '+esc(f.meetingSentence)+(f.timestamp?' ('+esc(f.timestamp)+')':'')+'</p>';
   else if(!f.dropped)h+='<p>Meeting said: nothing in the meeting record mentions this.</p>';
   h+='</div>';
