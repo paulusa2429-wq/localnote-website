@@ -2178,6 +2178,28 @@
       // --- money (per-fact assignment so multi-amount sentences pair up correctly) ---
       if (df.money.length) {
         var usedMF = {};
+        // pass #14: the sentence's TOTAL fact — the total-framed
+        // amount CLOSEST to a total marker. totalFramed's ±40-char
+        // window bleeds past the total onto the components listed
+        // after it ("The total is $15,000: design $4,000 ..." made
+        // the $4,000 component "total-framed" too, and the aggregate
+        // branch below paired it with the meeting's $15,000). Only
+        // the closest amount takes the aggregate branch; components
+        // pair generically with their own counterparts.
+        var totalFactOfD = null;
+        (function () {
+          var marks = [], m2, re2 = /\btotal\b|\bcomes to\b/gi;
+          while ((m2 = re2.exec(d.text))) marks.push([m2.index, m2.index + m2[0].length]);
+          if (!marks.length) return;
+          var bestDist = Infinity;
+          df.money.forEach(function (f2) {
+            if (!totalFramed(d.text, f2)) return;
+            marks.forEach(function (mk) {
+              var dist = f2.span[0] >= mk[1] ? f2.span[0] - mk[1] : (f2.span[1] <= mk[0] ? mk[0] - f2.span[1] : 0);
+              if (dist < bestDist) { bestDist = dist; totalFactOfD = f2; }
+            });
+          });
+        })();
         df.money.forEach(function (mf) {
           // pass #13: aggregate amounts pair with aggregates. A
           // total-framed draft amount belongs to the meeting's
@@ -2188,7 +2210,7 @@
           // aggregate in the meeting, a draft total equal to the sum
           // of stated components is the same money spelled as a sum
           // — explained, like a derivation.
-          if (totalFramed(d.text, mf) || (/^total$/i.test(d.speaker || '') && df.money[0] === mf)) {
+          if (mf === totalFactOfD || (/^total$/i.test(d.speaker || '') && df.money[0] === mf)) {
             var aggFacts = [];
             meeting.forEach(function (ms2) { ms2.facts.money.forEach(function (f2, fi2) { if (f2.aggregate) aggFacts.push({ s: ms2, f: f2, fi: fi2 }); }); });
             if (aggFacts.length) {
@@ -2948,6 +2970,23 @@
         if (draftHistoryFramed(sent, f.span)) return false;
         return true;
       }
+      // pass #14: a fact's SEGMENT within its sentence — the stretch
+      // of the line the fact owns, bounded by clause punctuation
+      // (, ; ( )) and by the neighbouring facts of every kind. A
+      // summary sentence carries several facts ("kickoff on
+      // January 12 and launch by March 16", "Budget 120 hours for
+      // 80 users"); what one fact's stretch of the line says is
+      // that fact's business, and no other fact's.
+      function draftSegment(sent, fact) {
+        var start = 0, end = sent.text.length, i, ch;
+        for (i = 0; i < fact.span[0]; i++) { ch = sent.text.charAt(i); if (ch === ',' || ch === ';' || ch === '(' || ch === ')') start = i + 1; }
+        for (i = fact.span[1]; i < sent.text.length; i++) { ch = sent.text.charAt(i); if (ch === ',' || ch === ';' || ch === '(' || ch === ')') { end = i; break; } }
+        allFactSpans(sent).forEach(function (sp) {
+          if (sp[1] <= fact.span[0] && sp[1] > start) start = sp[1];
+          if (sp[0] >= fact.span[1] && sp[0] < end) end = sp[0];
+        });
+        return [start, end];
+      }
       flags.forEach(function (fl) {
         // pass #13 (B, forward): the added-charge shape — a draft
         // amount with no meeting counterpart — is governed by the
@@ -2974,28 +3013,41 @@
         if (!kind) return;
         var citedFi = (cited.facts[kind] || []).indexOf(citedFact);
         var rec = entryRec[kind + '|' + cited.index + ':' + citedFi];
-        // pass #13 (A): the self-contradiction guard. A card whose
-        // cited value is itself ASSERTED in the very draft sentence
-        // it accuses — by a fact OTHER than the one it accuses —
-        // contradicts itself: the sentence states the meeting's
-        // value, and the flag paired one of its other amounts with
-        // the wrong chain (a card reading "final was $15,000" over a
-        // draft that says "Total: $15,000 (design $4,000, build
-        // $11,000)"). The card is dropped, whatever its confidence.
-        // Two things are NOT assertion of the cited value: the
-        // accused fact itself (a pending-offer flag legitimately
-        // cites the very offer value the draft asserts — its
-        // both-lines display is the sanctioned uncertainty shape),
-        // and a mere mention — a value the sentence names only to
-        // reject it ("not the $10,000 first quoted") or to quote it
-        // as history (see assertedFact). A legitimate flag against
-        // the sentence's asserted value therefore survives.
+        // pass #13 (A): the self-contradiction guard — pass #14:
+        // SCOPED to the accused fact's own segment. Pass #13 read
+        // the whole draft sentence, so a value belonging to a
+        // DIFFERENT fact in the same sentence killed legitimate
+        // cards (blind round 6): a launch-date flag died because
+        // the kickoff date sharing its sentence was correct, and a
+        // 120-hours flag died because the same sentence also
+        // counted 80 users. Two drops remain:
+        // (a) the cited value is asserted by another fact INSIDE
+        //     the accused fact's segment (draftSegment) — the card
+        //     contradicts the very stretch of the line it accuses;
+        // (b) the accused fact is itself only MENTIONED in its
+        //     sentence — named to be rejected ("not the $10,000
+        //     first quoted") or quoted as history (assertedFact):
+        //     a card may not accuse a mention.
+        // The pass-13 totals shape is no longer the guard's work:
+        // the pairing layer routes only the sentence's closest-to-
+        // marker amount to the meeting's aggregate, so components
+        // pair with components and the self-contradicting card
+        // never arises. The accused fact itself remains exempt
+        // from (a) — a pending-offer flag legitimately cites the
+        // very offer value the draft asserts.
         if (!fl.dropped && fl.draftIndex >= 0 && draft[fl.draftIndex]) {
           var gSent = draft[fl.draftIndex], gFacts = gSent.facts[kind] || [], gHit = false;
           var accusedFact = fl.draftFactText ? findFact(kind, gSent, fl.draftFactText) : null;
-          for (var gi = 0; gi < gFacts.length; gi++) {
-            if (gFacts[gi] === accusedFact) continue;
-            if (sameVal(kind, gFacts[gi], citedFact) && assertedFact(gSent, gFacts[gi])) { gHit = true; break; }
+          if (accusedFact && accusedFact.span) {
+            if (!assertedFact(gSent, accusedFact)) gHit = true;
+            else {
+              var seg = draftSegment(gSent, accusedFact);
+              for (var gi = 0; gi < gFacts.length; gi++) {
+                if (gFacts[gi] === accusedFact) continue;
+                if (!gFacts[gi].span || gFacts[gi].span[0] < seg[0] || gFacts[gi].span[1] > seg[1]) continue;
+                if (sameVal(kind, gFacts[gi], citedFact) && assertedFact(gSent, gFacts[gi])) { gHit = true; break; }
+              }
+            }
           }
           if (gHit) { suppressed.push(fl); return; }
         }
