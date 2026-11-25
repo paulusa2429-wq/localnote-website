@@ -487,6 +487,16 @@ out.innerHTML='<div class="catchCard clean"><p class="catchHead">The check could
 });
 })();
 </script>
+<script>
+window.goatcounter = {
+    referrer: function() {
+        return goatcounter.get_query('ref') ||
+            goatcounter.get_query('utm_campaign') ||
+            goatcounter.get_query('utm_source') ||
+            document.referrer
+    },
+}
+</script>
 <script data-goatcounter="https://proofaro.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
 <style>
 /* Mobile story carousel controls: one scene at a time + arrows + counter, only at/below the design's 980px breakpoint. Desktop strip untouched (controls hidden, grid unchanged). */
