@@ -535,4 +535,21 @@ sync(0);
 .realUiNote{bottom:6px;right:10px}
 .playLabel{top:7px;left:7px;bottom:auto}
 }
+/* Hero player full-poster fix (2026-11-25): the poster is complete 16:9 artwork — show ALL of it.
+   The old fixed panel heights cover-cropped it (dark banner cut, avatar pushed to the panel edge).
+   Now the player keeps the poster's own 16:9 ratio, the panel height follows its content, the art
+   column grows with the panel, and the caption block flows under the panel instead of overlapping it. */
+.heroArt{height:auto}
+.heroArt .app{position:relative;top:auto;right:auto;height:auto;margin:150px 0 0 auto}
+.heroPlay{flex:none;aspect-ratio:16/9;height:auto}
+.heroPlay .screenShot{height:100%}
+.realUiNote{position:static;margin-top:10px;padding-right:24px}
+.playDisc{left:58%;top:24%;transform:translate(-50%,-50%);width:48px;height:48px;font-size:16px}
+.heroPlay:hover .playDisc{transform:translate(-50%,-50%) scale(1.07)}
+@media(max-width:1200px){.playDisc{width:42px;height:42px;font-size:15px}}
+@media(max-width:560px){
+.heroArt .app{margin-top:154px}
+.realUiNote{padding-right:10px}
+.playDisc{left:58%;top:24%;width:36px;height:36px;font-size:13px}
+}
 .actions a.btn{color:#fff;-webkit-text-fill-color:#fff;text-decoration:none}.actions .btn.secondary{background:#fff;color:#5b21b6;border:1.5px solid #d9c7f5;box-shadow:none}</style></body></html>
