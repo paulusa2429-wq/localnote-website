@@ -1398,21 +1398,51 @@
     }
     function buildChains(entries) {
       var chains = [];
+      // value identity for restatement joining, per kind: money /
+      // counts / percent compare on value (money keeps currency in
+      // the identity), terms on days, dates on the calendar fields
+      function sameValueFact(g, e) {
+        if (typeof g.f.value === 'number' && typeof e.f.value === 'number') {
+          return Math.abs(g.f.value - e.f.value) < 0.005 && !(g.f.currency && e.f.currency && g.f.currency !== e.f.currency);
+        }
+        if (typeof g.f.days === 'number' && typeof e.f.days === 'number') return g.f.days === e.f.days;
+        if (g.f.day !== undefined || e.f.day !== undefined || g.f.month !== undefined || e.f.month !== undefined) return sameDate(g.f, e.f);
+        return false;
+      }
       entries.forEach(function (e) {
         var placed = false;
         // a mention whose value already appears in a chain restates or
         // confirms that mention ("Okay, $9,000 it is" after the $9,000
         // ask) — it belongs to that chain, never to a different item's
         // chain where it would pose as that item's replacement
-        if (typeof e.f.value === 'number') {
-          for (var vi = chains.length - 1; vi >= 0 && !placed; vi--) {
-            var vc = chains[vi], vlast = vc[vc.length - 1];
-            if (vlast.s.index === e.s.index) continue;
-            if (idTier(e.ids || e.s.ids, vlast.ids || vlast.s.ids) === 0) continue;
-            if (!descCompatible(e.desc, vlast.desc)) continue;
-            var hasVal = vc.some(function (g) { return g.s.index !== e.s.index && typeof g.f.value === 'number' && Math.abs(g.f.value - e.f.value) < 0.005 && !(g.f.currency && e.f.currency && g.f.currency !== e.f.currency); });
-            if (!hasVal) continue;
-            vc.push(e); placed = true;
+        for (var vi = chains.length - 1; vi >= 0 && !placed; vi--) {
+          var vc = chains[vi], vlast = vc[vc.length - 1];
+          if (vlast.s.index === e.s.index) continue;
+          if (idTier(e.ids || e.s.ids, vlast.ids || vlast.s.ids) === 0) continue;
+          if (!descCompatible(e.desc, vlast.desc)) continue;
+          var hasVal = vc.some(function (g) { return g.s.index !== e.s.index && sameValueFact(g, e); });
+          if (!hasVal) continue;
+          vc.push(e); placed = true;
+        }
+        // pass #13: the answer-sentence restatement. When BOTH values
+        // of a negotiation debut in questions, the pushback sentence
+        // restates the opening value in its own words ("The 10th is
+        // hard for us." after "Can we have the draft by the 10th?") —
+        // its descriptors need share nothing with the question's, so
+        // descriptor grouping stranded it in a chain of its own,
+        // where the value stayed "operative" and rescued the stale
+        // draft (and its chain haunted the correct one). Position is
+        // the signal: a same-value mention in the sentence
+        // IMMEDIATELY after one that already carries the value is
+        // that negotiation's answer, whatever words it uses.
+        if (!placed) {
+          for (var ai = chains.length - 1; ai >= 0 && !placed; ai--) {
+            var ac = chains[ai], alast = ac[ac.length - 1];
+            if (alast.s.index === e.s.index) continue;
+            if (idTier(e.ids || e.s.ids, alast.ids || alast.s.ids) === 0) continue;
+            var adjacent = ac.some(function (g) { return g.s.index === e.s.index - 1 && sameValueFact(g, e); });
+            if (!adjacent) continue;
+            ac.push(e); placed = true;
           }
         }
         // pass #12: a BARE mention (no item words of its own) that is
@@ -1476,6 +1506,13 @@
       var dd = chainDesc(d.text, span);
       return Object.keys(dd).some(function (w) { return HISTORY_TOK[w]; });
     }
+    // closing / speech-act vocabulary that can survive in a mention's
+    // descriptor set ("Eighteen five, final offer.") — it frames the
+    // speech act around a value, never names the item priced, so it
+    // cannot make a chain "about" a different item (pass #13; the
+    // same rationale that put 'start'/'lock' in CHAIN_GENERIC)
+    var STANCE_DESC = {};
+    ['final', 'finally', 'offer'].forEach(function (w) { STANCE_DESC[stem(w)] = 1; });
     function chainContradicts(dDesc, e, chainOf) {
       // the draft positively names a DIFFERENT item than this chain is
       // about: its descriptors share nothing with any mention in the
@@ -1486,7 +1523,7 @@
       var ch = chainOf[entryKey(e)] || [e];
       var shared = ch.some(function (g) { return Object.keys(dDesc).some(function (w) { return g.desc[w]; }); });
       if (shared) return false;
-      return Object.keys(ch[ch.length - 1].desc).length > 0;
+      return Object.keys(ch[ch.length - 1].desc).some(function (w) { return !STANCE_DESC[w]; });
     }
     /* ---- bare assent (pass #9): the closing EVENT ----
        Real agreement usually carries no number: "Yeah." / "Fine by
@@ -1550,6 +1587,11 @@
       // competing offer was refused outright, no counter needed) is
       // final on the refusal's evidence, not merely positional
       if (fin.settledByRefusal) return 'High';
+      // pass #13: a statement that restates a value floated earlier
+      // as an offer closes it by the restatement itself ("The 22nd
+      // it is." after "The 22nd?") — positional finality, no closing
+      // vocabulary needed
+      if (fin.restateClosed) return 'High';
       return FINALITY_RE.test(fin.s.text) ? 'High' : 'Low';
     }
     /* Anaphoric cancellation (pass #10): a retraction in the sentence
@@ -1755,12 +1797,24 @@
         // competing offer was refused outright — explicit, unhedged,
         // no counter needed. Flags resting on it carry full finality.
         if (!operative.offer && ch.some(function (e) { return e.rejected && e.refusalClean && differs(e.f, operative.f); })) operative.settledByRefusal = true;
+        // restatement closure (pass #13): a STATEMENT that restates a
+        // value this chain floated earlier as an offer adopts that
+        // offer — "The 22nd it is." after "The 22nd?", "Yeah, the
+        // 14th is fine." after "Would the 14th work better?". The
+        // closure is positional (same value, offer first, statement
+        // after), not phrase-driven; a hedged restatement ("Probably
+        // the 14th, I'll confirm tomorrow") closes nothing.
+        if (!operative.offer && !HEDGE_RE.test(operative.s.text)) {
+          operative.restateClosed = ch.some(function (e) {
+            return e !== operative && e.offer && !e.history && !e.example && !differs(e.f, operative.f) && e.s.index < operative.s.index;
+          });
+        }
         // pass #11: whether the operative's authority was CLOSED by an
         // assent or a settling refusal — the finalisation pass uses
         // it to tell a closed question-offer (the deal's own record,
         // High stands) from a question that merely hangs (never
         // evidence for a High flag)
-        rec.closed = !!(operative.assentClosed || operative.settledByRefusal);
+        rec.closed = !!(operative.assentClosed || operative.settledByRefusal || operative.restateClosed);
         if (operative.offer && !operative.assentClosed) {
           var standing = null;
           authority.forEach(function (e) { if (!e.offer && differs(e.f, operative.f)) standing = e; });
@@ -1815,19 +1869,54 @@
           lastK = k2;
           seq.push({ text: factTextOf(kind, e), sentence: e.s.text, timestamp: e.s.timestamp || null });
         });
-        if (Object.keys(seenVal).length >= 3 && operative.assentClosed && !NEG_FINALITY_RE.test(operative.s.text)) {
+        if (Object.keys(seenVal).length >= 3 && operative.assentClosed && !operative.restateClosed && !NEG_FINALITY_RE.test(operative.s.text)) {
           rec.negotiated = true;
           rec.sequence = seq;
         }
       });
     }
+    // pass #13: aggregate amounts. A figure framed as a TOTAL whose
+    // value is the sum of amounts already stated ("Design $4,000.
+    // Build $11,000. So $15,000 total?") is an aggregate of its
+    // components, not a renegotiation of any one of them: chaining
+    // it onto a component's chain made the component "superseded"
+    // by its own sum (the estate invariant caught a flag quoting
+    // the build's $11,000, which the chain export called
+    // superseded). Aggregates stay comparable as counterparts — a
+    // draft's total pairs with the meeting's total through the
+    // sentence facts — but they never join a chain, so they
+    // supersede nothing and nothing supersedes them.
+    function totalFramed(text, f) {
+      var win = text.slice(Math.max(0, f.span[0] - 40), Math.min(text.length, f.span[1] + 40));
+      return /\btotal\b|\bcomes to\b/i.test(win);
+    }
+    (function markAggregates() {
+      var prior = [];
+      meeting.forEach(function (s) {
+        s.facts.money.forEach(function (f, fi) {
+          // A line labelled "Total:" parses with speaker "Total" —
+          // the label is the total marker for its first amount.
+          if ((totalFramed(s.text, f) || (/^total$/i.test(s.speaker || '') && fi === 0)) && prior.length >= 2) {
+            var tol = Math.max(0.5, f.value * 0.001), hit = false;
+            for (var i = 0; i < prior.length && !hit; i++) for (var j = i + 1; j < prior.length && !hit; j++) {
+              if (Math.abs(prior[i].value + prior[j].value - f.value) <= tol) hit = true;
+              for (var k = j + 1; k < prior.length && !hit; k++) {
+                if (Math.abs(prior[i].value + prior[j].value + prior[k].value - f.value) <= tol) hit = true;
+              }
+            }
+            if (hit) f.aggregate = true;
+          }
+          prior.push(f);
+        });
+      });
+    })();
     var moneyEntries = [];
     meeting.forEach(function (s) { s.facts.money.forEach(function (f, fi) { moneyEntries.push({ s: s, f: f, fi: fi, desc: f.conditional ? clauseDesc(s, f) : chainDesc(s.text, f.span, allFactSpans(s)), offer: offerSentence(s), history: !!f.history, conditional: !!f.conditional, example: !!f.example, ids: factIds(s, f), retired: !!f.retired }); }); });
     var supersededMoney = {};   // entryKey -> the operative entry of its chain
     var uncertainMoney = {};    // entryKey -> { standing, offer } for chains with no honest final value
     var chainOfMoney = {};
     var infoMoney = [];
-    resolveChains(buildChains(moneyEntries), 'money', function (a, b) { return Math.abs(a.value - b.value) >= 0.005 || !!(a.currency && b.currency && a.currency !== b.currency); }, supersededMoney, uncertainMoney, chainOfMoney, function (e, op) { return restatesValue(op.s, op.f, e.f.value); }, infoMoney);
+    resolveChains(buildChains(moneyEntries.filter(function (e) { return !e.f.aggregate; })), 'money', function (a, b) { return Math.abs(a.value - b.value) >= 0.005 || !!(a.currency && b.currency && a.currency !== b.currency); }, supersededMoney, uncertainMoney, chainOfMoney, function (e, op) { return restatesValue(op.s, op.f, e.f.value); }, infoMoney);
     var countEntriesByNoun = {};
     meeting.forEach(function (s) {
       s.facts.counts.forEach(function (f, fi) {
@@ -2090,6 +2179,39 @@
       if (df.money.length) {
         var usedMF = {};
         df.money.forEach(function (mf) {
+          // pass #13: aggregate amounts pair with aggregates. A
+          // total-framed draft amount belongs to the meeting's
+          // aggregate figure, never to a component — the generic
+          // assignment below pairs by local descriptors and scrambled
+          // "Total: $15,000 (design $4,000, build $11,000)" onto the
+          // components (its total landed on the design fee). With no
+          // aggregate in the meeting, a draft total equal to the sum
+          // of stated components is the same money spelled as a sum
+          // — explained, like a derivation.
+          if (totalFramed(d.text, mf) || (/^total$/i.test(d.speaker || '') && df.money[0] === mf)) {
+            var aggFacts = [];
+            meeting.forEach(function (ms2) { ms2.facts.money.forEach(function (f2, fi2) { if (f2.aggregate) aggFacts.push({ s: ms2, f: f2, fi: fi2 }); }); });
+            if (aggFacts.length) {
+              var aggPick = aggFacts[0];
+              for (var agi = 1; agi < aggFacts.length; agi++) if (Math.abs(aggFacts[agi].f.value - mf.value) < Math.abs(aggPick.f.value - mf.value)) aggPick = aggFacts[agi];
+              matchedMs[aggPick.s.index] = 1; matchedMoneyMs[aggPick.s.index] = 1; accountedMF[aggPick.s.index + ':' + aggPick.fi] = 1;
+              var aDiff = Math.abs(aggPick.f.value - mf.value) >= 0.005;
+              var acDiff = !!(mf.currency && aggPick.f.currency && mf.currency !== aggPick.f.currency);
+              var apDiff = !!(mf.period && aggPick.f.period && mf.period !== aggPick.f.period);
+              if (aDiff || acDiff || apDiff) addFlag({ type: 'Amount', beta: false, confidence: aggFacts.length === 1 ? 'High' : 'Low', draftIndex: d.index, draftSentence: d.text, draftSpan: mf.span, draftFactText: mf.raw, meetingSentence: aggPick.s.text, meetingSpan: aggPick.f.span, meetingFactText: aggPick.f.raw, timestamp: aggPick.s.timestamp, fix: fixNumFor(d.text, mf.span, mf.raw, aggPick.f) });
+              return;
+            }
+            var compFacts = [];
+            meeting.forEach(function (ms3) { ms3.facts.money.forEach(function (f3) { if (!f3.aggregate && !(mf.currency && f3.currency && f3.currency !== mf.currency)) compFacts.push(f3); }); });
+            var ctol = Math.max(0.5, mf.value * 0.001), cHit = false;
+            for (var ci = 0; ci < compFacts.length && !cHit; ci++) for (var cj = ci + 1; cj < compFacts.length && !cHit; cj++) {
+              if (Math.abs(compFacts[ci].value + compFacts[cj].value - mf.value) <= ctol) cHit = true;
+              for (var ck = cj + 1; ck < compFacts.length && !cHit; ck++) {
+                if (Math.abs(compFacts[ci].value + compFacts[cj].value + compFacts[ck].value - mf.value) <= ctol) cHit = true;
+              }
+            }
+            if (cHit) return;
+          }
           // zero / absence: the meeting said this fee does not exist
           var fk = draftFeeKey(d.text, mf.span);
           if (fk && zeroByKey[fk]) {
@@ -2130,10 +2252,17 @@
               if (fact.history || fact.rejected || fact.conditional || fact.retired || fact.example) return; // no current authority: never a counterpart
               totalFacts++;
               if (usedMF[c.s.index + ':' + fi]) return;
-              options.push({ s: c.s, sc: c.sc, tier: c.tier, fact: fact, fi: fi, desc: descOverlap(d, mf, c.s, fact), exact: (Math.abs(fact.value - mf.value) < 0.005 && !(mf.currency && fact.currency && mf.currency !== fact.currency)) ? 1 : 0 });
+              options.push({ s: c.s, sc: c.sc, tier: c.tier, fact: fact, fi: fi, desc: descOverlap(d, mf, c.s, fact), exact: (Math.abs(fact.value - mf.value) < 0.005 && !(mf.currency && fact.currency && mf.currency !== fact.currency)) ? 1 : 0,
+                // pass #13: the same value in a CONFLICTING currency
+                // ("$9,200" written for a fee settled as 9,200 euros)
+                // is not an exact match, but it is a positive pairing
+                // signal — the number travelled, the currency is the
+                // mismatch. Without it the fallback gate below refused
+                // to compare at all and the switch went silent.
+                cur: (Math.abs(fact.value - mf.value) < 0.005 && mf.currency && fact.currency && mf.currency !== fact.currency) ? 1 : 0 });
             });
           });
-          options.sort(function (a, b) { return (b.tier - a.tier) || (b.desc - a.desc) || (b.exact - a.exact) || (b.sc - a.sc) || (a.s.index - b.s.index) || (a.fi - b.fi); });
+          options.sort(function (a, b) { return (b.tier - a.tier) || (b.desc - a.desc) || (b.exact - a.exact) || (b.cur - a.cur) || (b.sc - a.sc) || (a.s.index - b.s.index) || (a.fi - b.fi); });
           var pick = options.length ? options[0] : null;
           // global rule: a superseded value is never quoted as the
           // meeting's truth — when the pick lands on one, the chain's
@@ -2161,7 +2290,7 @@
           // is compared normally; with several, the best counterpart is
           // compared tentatively (Low), and only when it carries some signal
           // (shared descriptors or the same value).
-          if (pick && (totalFacts === 1 || pick.desc > 0 || pick.exact)) {
+          if (pick && (totalFacts === 1 || pick.desc > 0 || pick.exact || pick.cur)) {
             usedMF[pick.s.index + ':' + pick.fi] = 1;
             matchedMs[pick.s.index] = 1; matchedMoneyMs[pick.s.index] = 1; accountedMF[pick.s.index + ':' + pick.fi] = 1;
             settleOutcome(pick, compareMoney(d, mf, pick.s, pick.fact, pick.sc, totalFacts !== 1, pick.desc));
@@ -2674,6 +2803,21 @@
        did not already reframe it, the flag is demoted the same way,
        reframed Earlier (the question) -> Later (the chain's
        operative line) when the chain provides one. */
+    // pass #13: a sentence that is NOTHING but a confirmation
+    // ("Correct." / "Agreed." / "Yes, exactly.") — no facts of its
+    // own, no hedge. Mirrors the pure-assent class the chain
+    // machinery uses, plus single confirmation words.
+    function confirmSentence(s) {
+      if (!s || s.facts.money.length || s.facts.counts.length || s.facts.dates.length || s.facts.percent.length) return false;
+      var norm = s.text.replace(/’/g, "'");
+      if (/\bbut\b|\bhmm\b|\bmaybe\b|\bperhaps\b|\bprobably\b|\blet me\b|\bi'?ll\s+(ask|check|think|confirm)\b|\bthink about\b|\bnot sure\b|\bcheck with\b/i.test(norm)) return false;
+      var t = norm.toLowerCase().replace(/['']/g, '').replace(/[!.,;:?]+/g, ' ').replace(/\s+/g, ' ').trim();
+      t = t.replace(/\s+(thanks|thank you)$/, '').trim();
+      var TOK = { yes: 1, yeah: 1, yep: 1, yup: 1, ok: 1, okay: 1, sure: 1, fine: 1, done: 1, agreed: 1, perfect: 1, great: 1, right: 1, correct: 1, absolutely: 1, definitely: 1, certainly: 1, understood: 1, confirmed: 1, deal: 1, works: 1, locked: 1, exactly: 1 };
+      var words = t.split(' ').filter(function (w) { return w.length; });
+      return words.length >= 1 && words.length <= 3 && words.every(function (w) { return TOK[w]; });
+    }
+
     (function finalise() {
       var suppressed = []; // pass #12 (fix b): dropped flags suppressed by the governance pass below
       var infosByKind = { money: infoMoney, counts: infoCounts, dates: infoDates, percent: infoPercent, terms: infoTerms };
@@ -2715,7 +2859,108 @@
         if (k === 'dates') return sameDate(a, b) || dateConsistent(a, b);
         return false;
       }
+      // ---- derived values (pass #13, case B) ----
+      // A draft amount that equals a stated amount TIMES a fraction
+      // the conversation itself stated is not an added charge and
+      // not a missing amount: it is the deposit / upfront /
+      // installment the words spelled out ("Fee is $12,000, half
+      // upfront." -> "$6,000 upfront"). Fractions are read from the
+      // immediate neighbourhood of the base amount (same sentence,
+      // +-64 chars — a fraction across the room belongs to another
+      // clause), or from a fraction standing in its own sentence
+      // right after the amount's. Percent derivations additionally
+      // need the source sentence to NAME the component (upfront,
+      // deposit, discount...): a bare percent next to a number
+      // explains nothing on its own. Exact derivation (within
+      // rounding) silences; approximate demotes to at most Low.
+      var FRACTION_SCAN = /\b(half|two\s+thirds|a\s+third|one\s+third|three\s+quarters|a\s+quarter|one\s+quarter|a\s+fifth|one\s+fifth|a\s+tenth|one\s+tenth)\b/gi;
+      var FRACTION_VAL = { 'half': 0.5, 'two thirds': 2 / 3, 'a third': 1 / 3, 'one third': 1 / 3, 'three quarters': 0.75, 'a quarter': 0.25, 'one quarter': 0.25, 'a fifth': 0.2, 'one fifth': 0.2, 'a tenth': 0.1, 'one tenth': 0.1 };
+      var COMPONENT_RE = /\b(upfront|deposit|signing|installments?|instalments?|advance|down\s+payment|discount)\b/i;
+      function scanFractionWords(text) {
+        var out = [], m;
+        FRACTION_SCAN.lastIndex = 0;
+        while ((m = FRACTION_SCAN.exec(text))) {
+          var after = text.slice(m.index + m[0].length, m.index + m[0].length + 16);
+          if (/^-/.test(after)) continue; // "half-day": an adjective, not a part of an amount
+          if (/^\s+(?:an?\s+)?(?:hour|day|week|month|year)\b/i.test(after)) continue; // "half an hour": a duration
+          var key = m[1].toLowerCase().replace(/\s+/g, ' ');
+          if (FRACTION_VAL[key] !== undefined) out.push(FRACTION_VAL[key]);
+        }
+        return out;
+      }
+      function buildDerivRules(sents) {
+        var rules = [];
+        sents.forEach(function (ms, mi) {
+          (ms.facts.money || []).forEach(function (b) {
+            var lo = Math.max(0, b.span[0] - 64), hi = Math.min(ms.text.length, b.span[1] + 64);
+            scanFractionWords(ms.text.slice(lo, hi)).forEach(function (fr) {
+              rules.push({ base: b.value, currency: b.currency || null, derived: b.value * fr, pct: false, src: ms });
+            });
+            (ms.facts.percent || []).forEach(function (pf) {
+              if (pf.span && pf.span[0] >= lo && pf.span[0] <= hi) rules.push({ base: b.value, currency: b.currency || null, derived: b.value * pf.value / 100, pct: true, src: ms });
+            });
+          });
+          if (!(ms.facts.money || []).length && mi > 0) {
+            // a fraction standing in its own sentence ("Half is due
+            // upfront.") derives from the amount it follows
+            var frs = scanFractionWords(ms.text);
+            (ms.facts.percent || []).forEach(function (pf) { frs.push({ v: pf.value / 100, pct: true }); });
+            (sents[mi - 1].facts.money || []).forEach(function (b) {
+              frs.forEach(function (fr) {
+                var isObj = typeof fr === 'object';
+                rules.push({ base: b.value, currency: b.currency || null, derived: b.value * (isObj ? fr.v : fr), pct: isObj, src: ms });
+              });
+            });
+          }
+        });
+        return rules;
+      }
+      var derivRules = buildDerivRules(meeting);
+      var draftDerivRules = buildDerivRules(draft);
+      function derivExplain(rules, value, currency, contextText) {
+        var best = null;
+        for (var ri = 0; ri < rules.length; ri++) {
+          var r = rules[ri];
+          if (currency && r.currency && currency !== r.currency) continue;
+          var comp = COMPONENT_RE.exec(r.src.text);
+          if (comp) {
+            if (!new RegExp('\\b' + comp[0].replace(/\s+/g, '\\s+') + '\\b', 'i').test(contextText)) continue;
+          } else if (r.pct) continue; // a bare percent with no named component explains nothing
+          var diff = Math.abs(value - r.derived);
+          if (diff <= Math.max(1, r.base * 0.001)) return 'exact';
+          if (diff <= r.base * 0.025) best = 'near';
+        }
+        return best;
+      }
+      // pass #13 (A): is this fact ASSERTED by its sentence, or only
+      // mentioned — named to be rejected ("not the $10,000 first
+      // quoted", "rather than $10,000") or quoted as history? The
+      // clause prefix (text since the last clause boundary) decides;
+      // in "not $9,000 but $10,000" the negation scopes to the item
+      // before 'but' and what follows it stays asserted.
+      function assertedFact(sent, f) {
+        var pre = sent.text.slice(0, f.span[0]);
+        var cut = Math.max(pre.lastIndexOf(','), pre.lastIndexOf(';'), pre.lastIndexOf('('));
+        var clause = pre.slice(cut + 1);
+        var butIx = clause.toLowerCase().lastIndexOf(' but ');
+        if (butIx >= 0) clause = clause.slice(butIx + 5);
+        if (/\b(not|no longer|never|rather than|instead of)\b/i.test(clause)) return false;
+        if (draftHistoryFramed(sent, f.span)) return false;
+        return true;
+      }
       flags.forEach(function (fl) {
+        // pass #13 (B, forward): the added-charge shape — a draft
+        // amount with no meeting counterpart — is governed by the
+        // derivation rule before anything else: an amount the
+        // meeting itself derived in words is not an added charge.
+        if (fl.type === 'Amount' && !fl.meetingFactText && fl.draftFactText && fl.draftIndex >= 0 && draft[fl.draftIndex]) {
+          var aFact = findFact('money', draft[fl.draftIndex], fl.draftFactText);
+          if (aFact) {
+            var aEx = derivExplain(derivRules, aFact.value, aFact.currency, draft[fl.draftIndex].text);
+            if (aEx === 'exact') { suppressed.push(fl); return; }
+            if (aEx === 'near' && fl.confidence === 'High') fl.confidence = 'Low';
+          }
+        }
         if (!fl.meetingSentence || !fl.meetingFactText) return;
         var cited = null;
         for (var si = 0; si < meeting.length; si++) if (meeting[si].text === fl.meetingSentence) { cited = meeting[si]; break; }
@@ -2729,6 +2974,40 @@
         if (!kind) return;
         var citedFi = (cited.facts[kind] || []).indexOf(citedFact);
         var rec = entryRec[kind + '|' + cited.index + ':' + citedFi];
+        // pass #13 (A): the self-contradiction guard. A card whose
+        // cited value is itself ASSERTED in the very draft sentence
+        // it accuses — by a fact OTHER than the one it accuses —
+        // contradicts itself: the sentence states the meeting's
+        // value, and the flag paired one of its other amounts with
+        // the wrong chain (a card reading "final was $15,000" over a
+        // draft that says "Total: $15,000 (design $4,000, build
+        // $11,000)"). The card is dropped, whatever its confidence.
+        // Two things are NOT assertion of the cited value: the
+        // accused fact itself (a pending-offer flag legitimately
+        // cites the very offer value the draft asserts — its
+        // both-lines display is the sanctioned uncertainty shape),
+        // and a mere mention — a value the sentence names only to
+        // reject it ("not the $10,000 first quoted") or to quote it
+        // as history (see assertedFact). A legitimate flag against
+        // the sentence's asserted value therefore survives.
+        if (!fl.dropped && fl.draftIndex >= 0 && draft[fl.draftIndex]) {
+          var gSent = draft[fl.draftIndex], gFacts = gSent.facts[kind] || [], gHit = false;
+          var accusedFact = fl.draftFactText ? findFact(kind, gSent, fl.draftFactText) : null;
+          for (var gi = 0; gi < gFacts.length; gi++) {
+            if (gFacts[gi] === accusedFact) continue;
+            if (sameVal(kind, gFacts[gi], citedFact) && assertedFact(gSent, gFacts[gi])) { gHit = true; break; }
+          }
+          if (gHit) { suppressed.push(fl); return; }
+        }
+        // pass #13 (B, reverse): a "missing" amount the draft covers
+        // by a derivation IT states is not missing — the meeting's
+        // "$6,000 upfront" against a draft that writes the $12,000
+        // fee "with half upfront" is the same money, spelled out.
+        if (fl.dropped && kind === 'money') {
+          var rEx = derivExplain(draftDerivRules, citedFact.value, citedFact.currency, cited.text);
+          if (rEx === 'exact') { suppressed.push(fl); return; }
+          if (rEx === 'near' && fl.confidence === 'High') fl.confidence = 'Low';
+        }
         // (pass #12, fix b) dropped flags are governed by the same
         // discipline as every other flag: a missing/dropped flag may
         // never cite a SUPERSEDED value. When the cited entry is
@@ -2820,7 +3099,14 @@
         // the deal's own record — it may carry a High flag; only a
         // question that merely hangs is barred from High evidence
         var citedIsOperative = rec && rec.operative === cited.index + ':' + citedFi;
-        var questionEvidence = offerSentence(cited) && !(citedIsOperative && rec.closed);
+        // pass #13: an aggregate posed as a question and confirmed by
+        // a pure assent in the very next sentence ("So $15,000
+        // total?" / "Correct.") is likewise the deal's own record —
+        // aggregates carry no chain record, so the closure is read
+        // off the text here (the sum identity is itself evidence:
+        // the figure equals its stated components added up).
+        var aggConfirmed = !!(citedFact && citedFact.aggregate && cited.index + 1 < meeting.length && confirmSentence(meeting[cited.index + 1]));
+        var questionEvidence = offerSentence(cited) && !(citedIsOperative && rec.closed) && !aggConfirmed;
         if (!laterFact && !questionEvidence) return;
         fl.capped = true;
         fl.confidence = 'Low';
