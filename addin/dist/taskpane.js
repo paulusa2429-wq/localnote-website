@@ -83,6 +83,7 @@ ${stripQuotedHistory(snapshot2.bodyText)}`);
       clearTimeout(timer);
     }
   }
+  var UNCHECKED_SEND_LINE = "Proofaro wasn't running, so this email wasn't checked.";
   var SEND_MESSAGE_LIMIT = 500;
   var clip = (s, max) => s.length <= max ? s : `${s.slice(0, max - 1).trimEnd()}\u2026`;
   function sendBlockMessage(active) {
@@ -148,6 +149,7 @@ ${stripQuotedHistory(snapshot2.bodyText)}`);
       if (outcome.kind === "ok") {
         this.entry = { fingerprint: fingerprintOf(snapshot2), result: outcome.result, at: this.now() };
         this.lastFailure = null;
+        this.deps.clearUncheckedSend?.();
       } else if (outcome.kind !== "no-token") {
         this.lastFailure = outcome.kind;
       }
@@ -213,7 +215,10 @@ ${stripQuotedHistory(snapshot2.bodyText)}`);
       }
       const outcome = await this.runCheck(snapshot2, SEND_BUDGET_MS);
       if (outcome.kind === "no-token") return { allow: true, reason: "not-paired" };
-      if (outcome.kind !== "ok") return { allow: true, reason: "bridge-unavailable" };
+      if (outcome.kind !== "ok") {
+        this.deps.recordUncheckedSend?.();
+        return { allow: true, reason: "bridge-unavailable" };
+      }
       return decideFromResult(outcome.result, dismissed, this.resolved);
     }
     /** what the task pane shows for this draft right now */
@@ -268,6 +273,7 @@ ${stripQuotedHistory(snapshot2.bodyText)}`);
   // src/office.ts
   var TOKEN_KEY = "proofaroBridgeToken";
   var CLEARANCE_KEY = "proofaroSendClearance";
+  var UNCHECKED_KEY = "proofaroUncheckedSend";
   function getPairedToken() {
     try {
       const v = Office.context.roamingSettings.get(TOKEN_KEY);
@@ -295,6 +301,21 @@ ${stripQuotedHistory(snapshot2.bodyText)}`);
       Office.context.roamingSettings.set(CLEARANCE_KEY, clearance);
       Office.context.roamingSettings.saveAsync();
     } catch {
+    }
+  }
+  function clearUncheckedSend() {
+    try {
+      Office.context.roamingSettings.set(UNCHECKED_KEY, 0);
+      Office.context.roamingSettings.saveAsync();
+    } catch {
+    }
+  }
+  function getUncheckedSendAt() {
+    try {
+      const v = Office.context.roamingSettings.get(UNCHECKED_KEY);
+      return typeof v === "number" && v > 0 ? v : null;
+    } catch {
+      return null;
     }
   }
   var formatRecipient = (r) => r.displayName && r.displayName !== r.emailAddress ? `${r.displayName} <${r.emailAddress}>` : r.emailAddress;
@@ -371,7 +392,8 @@ ${stripQuotedHistory(snapshot2.bodyText)}`);
     token: getPairedToken,
     fetchImpl: browserFetch,
     clearance: getClearance,
-    saveClearance
+    saveClearance,
+    clearUncheckedSend
   });
   var snapshot = null;
   var notice = "";
@@ -401,6 +423,7 @@ ${stripQuotedHistory(snapshot2.bodyText)}`);
     if (!root || !snapshot) return;
     root.replaceChildren();
     root.append(el("h1", "Proofaro \u2014 check before you send", "title"));
+    if (getUncheckedSendAt()) root.append(el("p", UNCHECKED_SEND_LINE, "notice"));
     if (notice) {
       root.append(el("p", notice, "notice"));
       notice = "";

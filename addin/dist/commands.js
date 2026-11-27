@@ -83,6 +83,10 @@ ${stripQuotedHistory(snapshot.bodyText)}`);
       clearTimeout(timer);
     }
   }
+  var UNCHECKED_SEND_LINE = "Proofaro wasn't running, so this email wasn't checked.";
+  function uncheckedSendNotice(decision) {
+    return decision.allow && decision.reason === "bridge-unavailable" ? UNCHECKED_SEND_LINE : null;
+  }
   var SEND_MESSAGE_LIMIT = 500;
   var clip = (s, max) => s.length <= max ? s : `${s.slice(0, max - 1).trimEnd()}\u2026`;
   function sendBlockMessage(active) {
@@ -139,6 +143,7 @@ ${stripQuotedHistory(snapshot.bodyText)}`);
       if (outcome.kind === "ok") {
         this.entry = { fingerprint: fingerprintOf(snapshot), result: outcome.result, at: this.now() };
         this.lastFailure = null;
+        this.deps.clearUncheckedSend?.();
       } else if (outcome.kind !== "no-token") {
         this.lastFailure = outcome.kind;
       }
@@ -204,7 +209,10 @@ ${stripQuotedHistory(snapshot.bodyText)}`);
       }
       const outcome = await this.runCheck(snapshot, SEND_BUDGET_MS);
       if (outcome.kind === "no-token") return { allow: true, reason: "not-paired" };
-      if (outcome.kind !== "ok") return { allow: true, reason: "bridge-unavailable" };
+      if (outcome.kind !== "ok") {
+        this.deps.recordUncheckedSend?.();
+        return { allow: true, reason: "bridge-unavailable" };
+      }
       return decideFromResult(outcome.result, dismissed, this.resolved);
     }
     /** what the task pane shows for this draft right now */
@@ -259,6 +267,7 @@ ${stripQuotedHistory(snapshot.bodyText)}`);
   // src/office.ts
   var TOKEN_KEY = "proofaroBridgeToken";
   var CLEARANCE_KEY = "proofaroSendClearance";
+  var UNCHECKED_KEY = "proofaroUncheckedSend";
   function getPairedToken() {
     try {
       const v = Office.context.roamingSettings.get(TOKEN_KEY);
@@ -281,6 +290,33 @@ ${stripQuotedHistory(snapshot.bodyText)}`);
     try {
       Office.context.roamingSettings.set(CLEARANCE_KEY, clearance);
       Office.context.roamingSettings.saveAsync();
+    } catch {
+    }
+  }
+  function markUncheckedSend() {
+    try {
+      Office.context.roamingSettings.set(UNCHECKED_KEY, Date.now());
+      Office.context.roamingSettings.saveAsync();
+    } catch {
+    }
+  }
+  function clearUncheckedSend() {
+    try {
+      Office.context.roamingSettings.set(UNCHECKED_KEY, 0);
+      Office.context.roamingSettings.saveAsync();
+    } catch {
+    }
+  }
+  function showUncheckedNotification(line) {
+    try {
+      const messages = Office.context.mailbox.item.notificationMessages;
+      if (!messages || typeof messages.addAsync !== "function") return;
+      messages.addAsync("proofaroUncheckedSend", {
+        type: "informationalMessage",
+        message: line,
+        icon: "proofaro.icon.16",
+        persistent: false
+      });
     } catch {
     }
   }
@@ -329,12 +365,15 @@ ${stripQuotedHistory(snapshot.bodyText)}`);
     token: getPairedToken,
     fetchImpl: browserFetch,
     clearance: getClearance,
-    saveClearance
+    saveClearance,
+    recordUncheckedSend: markUncheckedSend,
+    clearUncheckedSend
   });
   async function onMessageSend(event) {
     try {
       const snapshot = await readSnapshot();
       const decision = await session.decideSend(snapshot);
+      if (uncheckedSendNotice(decision)) showUncheckedNotification(UNCHECKED_SEND_LINE);
       completeSendEvent(event, decision);
     } catch {
       try {
