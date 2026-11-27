@@ -58,16 +58,14 @@
           <Runtimes>
             <Runtime resid="routeb.runtime" lifetime="short" />
           </Runtimes>
-          <AllFormFactors>
+          <DesktopFormFactor>
+            <FunctionFile resid="routeb.runtime" />
             <ExtensionPoint xsi:type="LaunchEvent">
               <LaunchEvents>
                 <LaunchEvent Type="OnMessageSend" FunctionName="onMessageSend" SendMode="PromptUser" />
               </LaunchEvents>
               <SourceLocation resid="routeb.runtime" />
             </ExtensionPoint>
-          </AllFormFactors>
-          <DesktopFormFactor>
-            <FunctionFile resid="routeb.runtime" />
             <ExtensionPoint xsi:type="MessageComposeCommandSurface">
               <OfficeTab id="TabDefault">
                 <Group id="routeb.composeGroup">
