@@ -16,21 +16,58 @@ var ROUTEB_BLOCK_MESSAGE =
 // (Smart Alerts dialog text is capped at 500 characters; the message above is ~124.)
 
 function onMessageSend(event) {
-  // DIAGNOSTIC BUILD A (2026-11-27): no body read. The first build hung inside
-  // the send on JP's machine twice — Outlook showed "taking longer than
-  // expected / processing message" and never completed. This build completes
-  // IMMEDIATELY with a block, to isolate whether the hang is in the body read
-  // or in the completion path itself. If this dialog text appears at once,
-  // the runtime + event.completed are healthy and the body read is the
-  // suspect; the body read then returns behind a watchdog timer whose
-  // timeout writes its own distinct dialog message.
-  console.log("[routeb] OnMessageSend fired (diagnostic build A — instant block)");
-  event.completed({
-    allowEvent: false,
-    errorMessage:
-      "Route B diagnostic A: the add-in held this send instantly, without reading the draft. " +
-      "If you can read this, the send-block path works."
-  });
+  // BUILD B (2026-11-27): the real canned decision, now on the fixed
+  // registration. Diagnostic A proved the block path works once the handler is
+  // associated inside Office.onReady. The body read returns here behind a
+  // 4-second watchdog: if getAsync never answers, the send is held with a
+  // DISTINCT timeout message so the failure is visible in the dialog itself
+  // (the first build's hang predated the registration fix, so the read may
+  // simply work now).
+  var finished = false;
+  function done(allow, message) {
+    if (finished) return;
+    finished = true;
+    console.log(
+      "[routeb] OnMessageSend decision: allowEvent=" + allow +
+      (message ? " errorMessage=" + JSON.stringify(message) : "")
+    );
+    if (allow) {
+      event.completed({ allowEvent: true });
+    } else {
+      event.completed({ allowEvent: false, errorMessage: message });
+    }
+  }
+
+  var watchdog = setTimeout(function () {
+    done(false,
+      "Route B diagnostic B: reading the draft timed out, so the add-in held this send. " +
+      "Please report this exact message.");
+  }, 4000);
+
+  try {
+    Office.context.mailbox.item.body.getAsync(
+      Office.CoercionType.Text,
+      function (result) {
+        clearTimeout(watchdog);
+        try {
+          var body = (result && result.value) || "";
+          console.log("[routeb] draft body read: " + body.length + " characters");
+          if (body.indexOf("4800") !== -1 || body.indexOf("$4,800") !== -1) {
+            done(false, ROUTEB_BLOCK_MESSAGE);
+          } else {
+            done(true);
+          }
+        } catch (e) {
+          console.log("[routeb] error reading body, failing open: " + e);
+          done(true);
+        }
+      }
+    );
+  } catch (e) {
+    clearTimeout(watchdog);
+    console.log("[routeb] error, failing open: " + e);
+    done(true);
+  }
 }
 
 // Register the handler under the exact name the manifest's LaunchEvent declares.
