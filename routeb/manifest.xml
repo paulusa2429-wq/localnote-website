@@ -38,7 +38,6 @@
     <Form xsi:type="ItemEdit">
       <DesktopSettings>
         <SourceLocation DefaultValue="https://proofaro.ai/routeb/taskpane.html" />
-        <RequestedHeight>450</RequestedHeight>
       </DesktopSettings>
     </Form>
   </FormSettings>
