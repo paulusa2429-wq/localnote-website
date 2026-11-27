@@ -34,6 +34,13 @@ function onMessageSend(event) {
 }
 
 // Register the handler under the exact name the manifest's LaunchEvent declares.
-if (typeof Office !== "undefined" && Office.actions && Office.actions.associate) {
-  Office.actions.associate("onMessageSend", onMessageSend);
+// DIAGNOSTIC FIX (2026-11-27): registration must happen inside Office.onReady —
+// the first stub build associated at script-parse time, and on JP's machine the
+// host then waited on a handler it never saw complete (the "taking longer than
+// expected / processing" dialog, twice). The product add-in registers inside
+// onReady (addin/src/events.ts) — the stub now matches it.
+if (typeof Office !== "undefined" && Office.onReady) {
+  Office.onReady(function () {
+    Office.actions.associate("onMessageSend", onMessageSend);
+  });
 }
