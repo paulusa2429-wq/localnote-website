@@ -87,6 +87,10 @@ ${stripQuotedHistory(snapshot.bodyText)}`);
   function uncheckedSendNotice(decision) {
     return decision.allow && decision.reason === "bridge-unavailable" ? UNCHECKED_SEND_LINE : null;
   }
+  var NOT_CONNECTED_SEND_LINE = "Proofaro isn't connected yet, so this email wasn't checked.";
+  function notConnectedSendNotice(decision) {
+    return decision.allow && decision.reason === "not-paired" ? NOT_CONNECTED_SEND_LINE : null;
+  }
   var SEND_MESSAGE_LIMIT = 500;
   var clip = (s, max) => s.length <= max ? s : `${s.slice(0, max - 1).trimEnd()}\u2026`;
   function sendBlockMessage(active) {
@@ -144,6 +148,7 @@ ${stripQuotedHistory(snapshot.bodyText)}`);
         this.entry = { fingerprint: fingerprintOf(snapshot), result: outcome.result, at: this.now() };
         this.lastFailure = null;
         this.deps.clearUncheckedSend?.();
+        this.deps.clearNotConnectedSend?.();
       } else if (outcome.kind !== "no-token") {
         this.lastFailure = outcome.kind;
       }
@@ -203,12 +208,18 @@ ${stripQuotedHistory(snapshot.bodyText)}`);
       const cleared = clearance && clearance.fingerprint === fingerprint ? clearance : null;
       if (cleared?.override) return { allow: true, reason: "user-override" };
       const dismissed = cleared ? /* @__PURE__ */ new Set([...this.dismissed, ...cleared.dismissed]) : this.dismissed;
-      if (!this.deps.token()) return { allow: true, reason: "not-paired" };
+      if (!this.deps.token()) {
+        this.deps.recordNotConnectedSend?.();
+        return { allow: true, reason: "not-paired" };
+      }
       if (this.entry && this.entry.fingerprint === fingerprint && this.now() - this.entry.at < CACHE_FRESH_MS) {
         return decideFromResult(this.entry.result, dismissed, this.resolved);
       }
       const outcome = await this.runCheck(snapshot, SEND_BUDGET_MS);
-      if (outcome.kind === "no-token") return { allow: true, reason: "not-paired" };
+      if (outcome.kind === "no-token") {
+        this.deps.recordNotConnectedSend?.();
+        return { allow: true, reason: "not-paired" };
+      }
       if (outcome.kind !== "ok") {
         this.deps.recordUncheckedSend?.();
         return { allow: true, reason: "bridge-unavailable" };
@@ -268,6 +279,7 @@ ${stripQuotedHistory(snapshot.bodyText)}`);
   var TOKEN_KEY = "proofaroBridgeToken";
   var CLEARANCE_KEY = "proofaroSendClearance";
   var UNCHECKED_KEY = "proofaroUncheckedSend";
+  var NOT_CONNECTED_KEY = "proofaroNotConnectedSend";
   function getPairedToken() {
     try {
       const v = Office.context.roamingSettings.get(TOKEN_KEY);
@@ -303,6 +315,20 @@ ${stripQuotedHistory(snapshot.bodyText)}`);
   function clearUncheckedSend() {
     try {
       Office.context.roamingSettings.set(UNCHECKED_KEY, 0);
+      Office.context.roamingSettings.saveAsync();
+    } catch {
+    }
+  }
+  function markNotConnectedSend() {
+    try {
+      Office.context.roamingSettings.set(NOT_CONNECTED_KEY, Date.now());
+      Office.context.roamingSettings.saveAsync();
+    } catch {
+    }
+  }
+  function clearNotConnectedSend() {
+    try {
+      Office.context.roamingSettings.set(NOT_CONNECTED_KEY, 0);
       Office.context.roamingSettings.saveAsync();
     } catch {
     }
@@ -367,13 +393,16 @@ ${stripQuotedHistory(snapshot.bodyText)}`);
     clearance: getClearance,
     saveClearance,
     recordUncheckedSend: markUncheckedSend,
-    clearUncheckedSend
+    clearUncheckedSend,
+    recordNotConnectedSend: markNotConnectedSend,
+    clearNotConnectedSend
   });
   async function onMessageSend(event) {
     try {
       const snapshot = await readSnapshot();
       const decision = await session.decideSend(snapshot);
-      if (uncheckedSendNotice(decision)) showUncheckedNotification(UNCHECKED_SEND_LINE);
+      const line = uncheckedSendNotice(decision) ?? notConnectedSendNotice(decision);
+      if (line) showUncheckedNotification(line);
       completeSendEvent(event, decision);
     } catch {
       try {

@@ -84,6 +84,7 @@ ${stripQuotedHistory(snapshot2.bodyText)}`);
     }
   }
   var UNCHECKED_SEND_LINE = "Proofaro wasn't running, so this email wasn't checked.";
+  var NOT_CONNECTED_SEND_LINE = "Proofaro isn't connected yet, so this email wasn't checked.";
   var SEND_MESSAGE_LIMIT = 500;
   var clip = (s, max) => s.length <= max ? s : `${s.slice(0, max - 1).trimEnd()}\u2026`;
   function sendBlockMessage(active) {
@@ -150,6 +151,7 @@ ${stripQuotedHistory(snapshot2.bodyText)}`);
         this.entry = { fingerprint: fingerprintOf(snapshot2), result: outcome.result, at: this.now() };
         this.lastFailure = null;
         this.deps.clearUncheckedSend?.();
+        this.deps.clearNotConnectedSend?.();
       } else if (outcome.kind !== "no-token") {
         this.lastFailure = outcome.kind;
       }
@@ -209,12 +211,18 @@ ${stripQuotedHistory(snapshot2.bodyText)}`);
       const cleared = clearance && clearance.fingerprint === fingerprint ? clearance : null;
       if (cleared?.override) return { allow: true, reason: "user-override" };
       const dismissed = cleared ? /* @__PURE__ */ new Set([...this.dismissed, ...cleared.dismissed]) : this.dismissed;
-      if (!this.deps.token()) return { allow: true, reason: "not-paired" };
+      if (!this.deps.token()) {
+        this.deps.recordNotConnectedSend?.();
+        return { allow: true, reason: "not-paired" };
+      }
       if (this.entry && this.entry.fingerprint === fingerprint && this.now() - this.entry.at < CACHE_FRESH_MS) {
         return decideFromResult(this.entry.result, dismissed, this.resolved);
       }
       const outcome = await this.runCheck(snapshot2, SEND_BUDGET_MS);
-      if (outcome.kind === "no-token") return { allow: true, reason: "not-paired" };
+      if (outcome.kind === "no-token") {
+        this.deps.recordNotConnectedSend?.();
+        return { allow: true, reason: "not-paired" };
+      }
       if (outcome.kind !== "ok") {
         this.deps.recordUncheckedSend?.();
         return { allow: true, reason: "bridge-unavailable" };
@@ -274,6 +282,7 @@ ${stripQuotedHistory(snapshot2.bodyText)}`);
   var TOKEN_KEY = "proofaroBridgeToken";
   var CLEARANCE_KEY = "proofaroSendClearance";
   var UNCHECKED_KEY = "proofaroUncheckedSend";
+  var NOT_CONNECTED_KEY = "proofaroNotConnectedSend";
   function getPairedToken() {
     try {
       const v = Office.context.roamingSettings.get(TOKEN_KEY);
@@ -313,6 +322,21 @@ ${stripQuotedHistory(snapshot2.bodyText)}`);
   function getUncheckedSendAt() {
     try {
       const v = Office.context.roamingSettings.get(UNCHECKED_KEY);
+      return typeof v === "number" && v > 0 ? v : null;
+    } catch {
+      return null;
+    }
+  }
+  function clearNotConnectedSend() {
+    try {
+      Office.context.roamingSettings.set(NOT_CONNECTED_KEY, 0);
+      Office.context.roamingSettings.saveAsync();
+    } catch {
+    }
+  }
+  function getNotConnectedSendAt() {
+    try {
+      const v = Office.context.roamingSettings.get(NOT_CONNECTED_KEY);
       return typeof v === "number" && v > 0 ? v : null;
     } catch {
       return null;
@@ -393,7 +417,8 @@ ${stripQuotedHistory(snapshot2.bodyText)}`);
     fetchImpl: browserFetch,
     clearance: getClearance,
     saveClearance,
-    clearUncheckedSend
+    clearUncheckedSend,
+    clearNotConnectedSend
   });
   var snapshot = null;
   var notice = "";
@@ -424,6 +449,7 @@ ${stripQuotedHistory(snapshot2.bodyText)}`);
     root.replaceChildren();
     root.append(el("h1", "Proofaro \u2014 check before you send", "title"));
     if (getUncheckedSendAt()) root.append(el("p", UNCHECKED_SEND_LINE, "notice"));
+    if (getNotConnectedSendAt()) root.append(el("p", NOT_CONNECTED_SEND_LINE, "notice"));
     if (notice) {
       root.append(el("p", notice, "notice"));
       notice = "";
