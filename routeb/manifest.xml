@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!--
+  Proofaro Route B TEST stub manifest (2026-11-27) — throwaway, not the product add-in.
+  Modeled on the product manifest (app repo addin/manifest.xml) with: a fresh GUID,
+  the display name "Proofaro Route B Test", and every URL under
+  https://proofaro.ai/routeb/. The handler it wires up is canned (see commands.js):
+  it blocks a send iff the draft body contains "4800"/"$4,800". It exists to prove
+  that OnMessageSend (Smart Alerts, SendMode "PromptUser", Mailbox 1.12) fires and
+  can hold a send on the test machine, before the real bridge is tested (Route A).
+  Icons are reused from the product add-in's hosted assets.
+-->
+<OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
+           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
+           xmlns:mailappor="http://schemas.microsoft.com/office/mailappversionoverrides/1.0"
+           xsi:type="MailApp">
+  <Id>4c4653e3-fbe7-4d32-8868-0115fde76858</Id>
+  <Version>1.0.0.0</Version>
+  <ProviderName>Proofaro</ProviderName>
+  <DefaultLocale>en-US</DefaultLocale>
+  <DisplayName DefaultValue="Proofaro Route B Test" />
+  <Description DefaultValue="Throwaway test add-in: holds a send when the draft body contains 4800, to prove Outlook's OnMessageSend Smart Alert works on this machine. Not the Proofaro product add-in." />
+  <IconUrl DefaultValue="https://proofaro.ai/addin/assets/icon-32.png" />
+  <HighResolutionIconUrl DefaultValue="https://proofaro.ai/addin/assets/icon-128.png" />
+  <SupportUrl DefaultValue="https://proofaro.ai" />
+  <AppDomains>
+    <AppDomain>https://proofaro.ai</AppDomain>
+  </AppDomains>
+  <Hosts>
+    <Host Name="Mailbox" />
+  </Hosts>
+  <Requirements>
+    <Sets>
+      <Set Name="Mailbox" MinVersion="1.12" />
+    </Sets>
+  </Requirements>
+  <FormSettings>
+    <Form xsi:type="ItemEdit">
+      <DesktopSettings>
+        <SourceLocation DefaultValue="https://proofaro.ai/routeb/taskpane.html" />
+        <RequestedHeight>450</RequestedHeight>
+      </DesktopSettings>
+    </Form>
+  </FormSettings>
+  <Permissions>ReadWriteItem</Permissions>
+  <Rule xsi:type="RuleCollection" Mode="Or">
+    <Rule xsi:type="ItemIs" ItemType="Message" FormType="Edit" />
+  </Rule>
+  <DisableEntityHighlighting>false</DisableEntityHighlighting>
+  <VersionOverrides xmlns="http://schemas.microsoft.com/office/mailappversionoverrides" xsi:type="VersionOverridesV1_0">
+    <VersionOverrides xmlns="http://schemas.microsoft.com/office/mailappversionoverrides/1.1" xsi:type="VersionOverridesV1_1">
+      <Requirements>
+        <bt:Sets DefaultMinVersion="1.12">
+          <bt:Set Name="Mailbox" />
+        </bt:Sets>
+      </Requirements>
+      <Hosts>
+        <Host xsi:type="MailHost">
+          <Runtimes>
+            <Runtime resid="routeb.runtime" lifetime="short" />
+          </Runtimes>
+          <AllFormFactors>
+            <ExtensionPoint xsi:type="LaunchEvent">
+              <LaunchEvents>
+                <LaunchEvent Type="OnMessageSend" FunctionName="onMessageSend" SendMode="PromptUser" />
+              </LaunchEvents>
+              <SourceLocation resid="routeb.runtime" />
+            </ExtensionPoint>
+          </AllFormFactors>
+          <DesktopFormFactor>
+            <FunctionFile resid="routeb.runtime" />
+            <ExtensionPoint xsi:type="MessageComposeCommandSurface">
+              <OfficeTab id="TabDefault">
+                <Group id="routeb.composeGroup">
+                  <Label resid="routeb.groupLabel" />
+                  <Control xsi:type="Button" id="routeb.openPane">
+                    <Label resid="routeb.paneButtonLabel" />
+                    <Supertip>
+                      <Title resid="routeb.paneButtonLabel" />
+                      <Description resid="routeb.paneButtonTip" />
+                    </Supertip>
+                    <Icon>
+                      <bt:Image size="16" resid="routeb.icon.16" />
+                      <bt:Image size="32" resid="routeb.icon.32" />
+                      <bt:Image size="80" resid="routeb.icon.80" />
+                    </Icon>
+                    <Action xsi:type="ShowTaskpane">
+                      <SourceLocation resid="routeb.taskpane" />
+                    </Action>
+                  </Control>
+                </Group>
+              </OfficeTab>
+            </ExtensionPoint>
+          </DesktopFormFactor>
+        </Host>
+      </Hosts>
+      <Resources>
+        <bt:Images>
+          <bt:Image id="routeb.icon.16" DefaultValue="https://proofaro.ai/addin/assets/icon-16.png" />
+          <bt:Image id="routeb.icon.32" DefaultValue="https://proofaro.ai/addin/assets/icon-32.png" />
+          <bt:Image id="routeb.icon.80" DefaultValue="https://proofaro.ai/addin/assets/icon-80.png" />
+        </bt:Images>
+        <bt:Urls>
+          <bt:Url id="routeb.runtime" DefaultValue="https://proofaro.ai/routeb/commands.html" />
+          <bt:Url id="routeb.taskpane" DefaultValue="https://proofaro.ai/routeb/taskpane.html" />
+        </bt:Urls>
+        <bt:ShortStrings>
+          <bt:String id="routeb.groupLabel" DefaultValue="Proofaro (test)" />
+          <bt:String id="routeb.paneButtonLabel" DefaultValue="Route B Test pane" />
+        </bt:ShortStrings>
+        <bt:LongStrings>
+          <bt:String id="routeb.paneButtonTip" DefaultValue="Placeholder pane for the Route B send-time test." />
+        </bt:LongStrings>
+      </Resources>
+    </VersionOverrides>
+  </VersionOverrides>
+</OfficeApp>
