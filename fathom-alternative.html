@@ -48,7 +48,7 @@ ul{padding-left:20px;margin:6px 0}
 figure{margin:26px 0}
 figure img{width:100%;height:auto;display:block;border-radius:14px;border:1px solid #e9def7;box-shadow:0 15px 42px rgba(75,25,137,.13)}
 figcaption{font-size:13px;color:#81768d;margin-top:9px}
-table{width:100%;border-collapse:collapse;margin:20px 0;font-size:15px}
+table{width:100%;border-collapse:collapse;margin:20px 0;font-size:15px}.cmpWrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:20px 0}.cmpWrap table{margin:0}
 th,td{text-align:left;padding:11px 12px;border-bottom:1px solid #e9def7;vertical-align:top;line-height:1.5}
 th{font-weight:800;color:#1A0A35}
 td:first-child{font-weight:600;color:#1A0A35;width:34%}
@@ -63,7 +63,7 @@ td:first-child{font-weight:600;color:#1A0A35;width:34%}
 .learnGroup{margin:26px 0 12px;text-align:left}.learnHeading{display:inline-flex;align-items:center;margin:0 0 12px;padding:8px 11px;border-radius:999px;background:#f2e7ff;color:#642df4;font-size:11px;font-weight:850;letter-spacing:1.5px;line-height:1;text-transform:uppercase}.learnGrid{display:grid;grid-template-columns:1fr;gap:12px;container-type:inline-size}.learnCard{position:relative;display:flex;flex-direction:row;align-items:center;gap:18px;min-height:78px;padding:16px 20px;border:1px solid #e9def7;border-radius:16px;background:#fff;color:#210b43;box-shadow:0 5px 12px #53148a0a;transition:border-color .18s ease,box-shadow .18s ease}.learnMain{display:flex;flex-direction:row;align-items:center;gap:14px;flex:1 1 auto;min-width:0;color:#210b43;text-decoration:none}.learnVs{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;align-items:center}.learnPill{display:inline-flex;align-items:center;padding:7px 12px;border:1px solid #e9def7;border-radius:999px;background:#f4eeff;color:#642df4;font-size:12.5px;font-weight:700;line-height:1.2;text-decoration:none;white-space:nowrap;transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease,background .18s ease}.learnIcon{display:grid;place-items:center;width:38px;height:38px;border-radius:12px;background:#f4eeff;color:#642df4;font-size:20px;line-height:1;flex:0 0 auto}.learnCopy{display:flex;flex-direction:column;gap:5px;min-width:0}.learnCardTitle{font-size:14.5px;font-weight:800;line-height:1.25;color:#210b43}.learnCardLine{font-size:12.5px;font-weight:500;line-height:1.45;color:#766985}.learnArrow{position:static;flex:0 0 auto;color:#642df4;font-size:18px;line-height:1;transition:transform .18s ease}.learnPill:active{background:#efe4ff}.learnMain:focus-visible,.learnPill:focus-visible{outline:3px solid #a765ec;outline-offset:3px}@media(hover:hover){.learnCard:hover{border-color:#c8affa;box-shadow:0 10px 22px #53148a14}.learnMain:hover .learnArrow{transform:translateX(3px)}.learnPill:hover{transform:translateY(-2px);border-color:#c8affa;background:#efe4ff;box-shadow:0 6px 14px #53148a12}}@container (max-width:980px){.learnCard{flex-direction:column;align-items:stretch;gap:12px}.learnVs{justify-content:flex-start}}@media(max-width:640px){.learnGroup{margin-top:22px}.learnCard{padding:14px 16px;flex-direction:column;align-items:stretch;gap:12px}.learnVs{justify-content:flex-start}}.foot .learnGroup{margin:18px 0 14px;line-height:1.35}.foot .learnCard{margin-right:0}.foot .learnHeading{line-height:1}.backlink{display:inline-block;margin:14px 0 2px;font:600 15px Inter,sans-serif;color:#642DF4;text-decoration:none}.backlink:hover{text-decoration:underline}
 .fitGrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:14px 0 4px}.fit{background:#fff;border:1px solid #e9def7;border-radius:16px;padding:18px;box-shadow:0 5px 12px #53148a0a}.fit h3{margin:0 0 6px;font-size:16.5px;letter-spacing:-.01em;color:#1A0A35}.fit p{margin:0;font-size:15px;line-height:1.6;color:#2c2a33}.fitClose{margin:20px 0 0;font-size:17px;line-height:1.6;color:#1A0A35}.fitCta{margin:14px 0 0}.faq h3{font-size:16.5px;margin:20px 0 4px;color:#1A0A35}.faq p{margin:0}@media(max-width:640px){.fitGrid{grid-template-columns:1fr}}</style>
 <style>.navCta{display:flex;align-items:center;gap:12px}.runsOn{font-size:12px;font-weight:600;color:#493961;background:#F4EEFF;border:1px solid #e9def7;border-radius:999px;padding:5px 12px;white-space:nowrap;letter-spacing:.01em;line-height:1.2}
-.runsOn .rsep{color:#8354FF;font-weight:700}@media(max-width:560px){.navCta{flex-direction:column;align-items:flex-end;gap:2px}.runsOn{font-size:9.5px;padding:3px 9px}}/* Mobile header breathing room (JP 2026-11-23): real gaps, nothing clipped or off-edge */@media(max-width:560px){.navCta{gap:7px}.brand{flex:0 1 auto;min-width:0}.brand img{width:min(36vw,132px);max-width:100%}}@media(max-width:380px){.navin{padding:0 16px}.runsOn{font-size:9px;padding:3px 8px}}</style></head>
+.runsOn .rsep{color:#8354FF;font-weight:700}@media(max-width:560px){.navCta{flex-direction:column;align-items:flex-end;gap:2px}.runsOn{font-size:12px;padding:3px 9px}}/* Mobile header breathing room (JP 2026-11-23): real gaps, nothing clipped or off-edge */@media(max-width:560px){.navCta{gap:7px}.brand{flex:0 1 auto;min-width:0}.brand img{width:min(36vw,132px);max-width:100%}}@media(max-width:380px){.navin{padding:0 16px}.runsOn{font-size:12px;padding:3px 8px}}</style></head>
 <body>
 <header class="nav"><div class="navin"><a class="brand" href="/"><img src="assets/lockup-300.png" alt="Proofaro"/></a><div class="navCta"><button class="btn" data-open="invite">Request Invite →</button><span class="runsOn">Runs on Mac <span class="rsep">·</span> Windows <span class="rsep">·</span> Linux</span></div></div></header>
 <div class="wrap"><a class="backlink" data-back href="/">&larr; Back</a><main>
@@ -82,7 +82,7 @@ td:first-child{font-weight:600;color:#1A0A35;width:34%}
 <h3>Does Fathom have an Android app?</h3><p>No — Fathom's mobile app is iPhone only, for in-person capture. Proofaro has no mobile app yet either; it is desktop-only while in early access, and this page will say so until that changes.</p>
 </div>
 <div class="cta"><h2>Side by side</h2>
-<table>
+<div class="cmpWrap"><table>
 <tr><th></th><th>Proofaro</th><th>Fathom</th></tr>
 <tr><td>A bot joins your meeting</td><td class="yes">Never — capture happens on your own computer</td><td>The Fathom Notetaker joins as a visible participant — or capture bot-free from the Mac desktop app (in beta); on Teams, capture is bot-only</td></tr>
 <tr><td>Where transcription happens</td><td class="yes">On your computer</td><td>Processed by Fathom — recordings are stored in Fathom's cloud in the US, and its help centre states an internet connection is required to capture and process</td></tr>
@@ -93,7 +93,7 @@ td:first-child{font-weight:600;color:#1A0A35;width:34%}
 <tr><td>Operating systems</td><td class="yes">Mac, Windows and Linux</td><td>Mac and Windows computers; its help centre lists Linux among the platforms it does not support</td></tr>
 <tr><td>Mobile apps</td><td class="yes">Not yet — desktop only for now</td><td class="yes">iPhone app for in-person capture; no Android app</td></tr>
 <tr><td>Availability</td><td class="yes">Invite-only early access</td><td class="yes">Anyone can sign up today — free plan with unlimited recordings and transcriptions</td></tr>
-</table>
+</table></div>
 <p class="note">Fathom details are based on Fathom's public documentation, checked November 2026. Sources: Fathom's <a href="https://www.fathom.ai/features/flexible-capture">flexible capture page</a> (three capture modes; the Notetaker is a visible attendee) and <a href="https://www.fathom.ai/features/bot-free-capture">bot-free capture page</a> (Mac desktop app, in beta), its help centre on <a href="https://help.fathom.video/en/articles/13926529">the iOS app</a> (internet required; “Offline recording is not available”; iOS only), on <a href="https://help.fathom.video/en/articles/296448">recording storage</a> (recordings stored indefinitely until deleted) and on <a href="https://help.fathom.video/en/articles/296576">supported computers</a> (Linux not supported), and <a href="https://www.fathom.ai/pricing">Fathom's pricing page</a> (free plan; unlimited recordings and transcription). Fathom is a trademark of its owner; this page is a comparison, not an affiliation.</p>
 <p class="note">Comparing more tools? See the <a href="compare.html">full comparison hub</a> — including <a href="granola-alternative.html">Proofaro vs Granola</a>.</p>
 <h2>When Proofaro is the better fit</h2>
@@ -118,7 +118,7 @@ td:first-child{font-weight:600;color:#1A0A35;width:34%}
 <template id="invite-form-template">
 <p class="inviteIntro">Free during early access. Available by invitation only. Tell us your email and your operating system — and, if you like, what you do.</p>
 <p class="inviteNote"><b>After early access:</b> a permanent Free mode keeps your history readable, searchable and exportable forever — and early users get the lowest price Proofaro ever offers, locked while subscribed.</p>
-<form id="invite-form">
+<form id="invite-form" method="post">
 <label class="inviteLabel" for="invite-email">Email address</label>
 <input class="formInput" autocomplete="email" id="invite-email" maxlength="254" name="email" placeholder="you@example.com" required type="email"/>
 <label class="inviteLabel" for="invite-role">What do you do? <span class="inviteOpt">(optional — helps us pick your wave)</span></label>
@@ -165,7 +165,7 @@ button:focus-visible,a:focus-visible{outline:3px solid #b277ef;outline-offset:4p
 .inviteNote a{color:#6121b9;text-decoration:underline}
 
 </style>
-<script>window.LOCALNOTE_INVITE_ENDPOINT="https://formsubmit.co/ajax/df25c6b83a284d12469f08ade02fac2b";</script>
+<script>window.PROOFARO_INVITE_ENDPOINT="https://formsubmit.co/ajax/df25c6b83a284d12469f08ade02fac2b";</script>
 <script>
 const dialog=document.getElementById('modal'), target=document.getElementById('modalContent');
 function show(type){document.getElementById('dialogTitle').textContent='Request an invitation';document.getElementById('dialogEyebrow').textContent='Free during early access';
@@ -178,6 +178,7 @@ let lastOpener=null;document.querySelectorAll('[data-open]').forEach(n=>n.addEve
 function wireInviteForm(){
  const form=document.getElementById('invite-form');if(!form||form.dataset.wired)return;form.dataset.wired='1';
  const msg=document.getElementById('invite-message');
+ const gcSubmit=()=>{try{if(window.goatcounter&&window.goatcounter.count)window.goatcounter.count({path:'events/email_submitted',title:'email_submitted',event:true});}catch(e){}};
  const roleSel=document.getElementById('invite-role'),otherWrap=document.getElementById('invite-role-other-wrap'),otherInput=document.getElementById('invite-role-other');
  roleSel.addEventListener('change',()=>{const o=roleSel.value==='Other';otherWrap.hidden=!o;if(o)otherInput.focus();});
  form.addEventListener('submit',async e=>{
@@ -186,7 +187,7 @@ function wireInviteForm(){
   const termsBox=document.getElementById('invite-terms');if(termsBox&&!termsBox.checked){msg.textContent='Please agree to the Terms and Privacy Policy to continue.';termsBox.focus();return;}
   const request={email:form.elements.email.value.trim(),operating_system:form.elements.operating_system.value,role:form.elements.role.value,terms_accepted:termsBox&&termsBox.checked?'yes':'',_honey:form.elements['_honey'].value};
   if(request.role==='Other')request.role_other=otherInput.value.trim();const cm=form.elements.common_mistake.value.trim();if(cm)request.common_mistake=cm;
-  const endpoint=window.LOCALNOTE_INVITE_ENDPOINT;
+  const endpoint=window.PROOFARO_INVITE_ENDPOINT;
   if(!endpoint){msg.textContent='Preview only: invitation request is not sent. Connect the approved request endpoint before launch.';return;}
   const submit=form.querySelector('[type=submit]');submit.disabled=true;
   msg.textContent='Submitting request\u2026';
@@ -197,11 +198,11 @@ function wireInviteForm(){
    const response=await Promise.race([send,limit]);
    clearTimeout(slowNote);
    if(response===null){
-    send.then(r=>{if(r&&r.ok){msg.textContent='Request received. Access is granted only after approval.';form.reset();}}).catch(()=>{});
+    send.then(r=>{if(r&&r.ok){gcSubmit();msg.textContent='Request received. Access is granted only after approval.';form.reset();}}).catch(()=>{});
     msg.textContent='This is taking longer than usual \u2014 your request is still being confirmed, so we cannot say yet that it reached us. If no acknowledgement email arrives within about 15 minutes, please email invites@proofaro.ai.';
    }else{
     if(!response.ok)throw new Error('Request not accepted');
-    msg.textContent='Request received. Access is granted only after approval.';
+    gcSubmit();msg.textContent='Request received. Access is granted only after approval.';
     form.reset();
    }
   }catch(err){clearTimeout(slowNote);msg.textContent='Could not submit your request. Please try again, or email invites@proofaro.ai.';}

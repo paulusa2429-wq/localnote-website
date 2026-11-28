@@ -105,7 +105,7 @@ textarea.ck:focus{outline:3px solid #b277ef;outline-offset:1px}
 @media print{.nav,.modal{display:none!important}.wrap>*:not(#printReport){display:none!important}#printReport{display:block!important;color:#000}#printReport h1{font-size:22px}#printReport .prFlag{border-top:1px solid #ccc;padding:10px 0}#printReport p{font-size:13.5px;color:#000}}
 </style>
 <style>.navCta{display:flex;align-items:center;gap:12px}.runsOn{font-size:12px;font-weight:600;color:#493961;background:#F4EEFF;border:1px solid #e9def7;border-radius:999px;padding:5px 12px;white-space:nowrap;letter-spacing:.01em;line-height:1.2}
-.runsOn .rsep{color:#8354FF;font-weight:700}@media(max-width:560px){.navCta{flex-direction:column;align-items:flex-end;gap:2px}.runsOn{font-size:9.5px;padding:3px 9px}}/* Mobile header breathing room (JP 2026-11-23): real gaps, nothing clipped or off-edge */@media(max-width:560px){.navCta{gap:7px}.brand{flex:0 1 auto;min-width:0}.brand img{width:min(36vw,132px);max-width:100%}}@media(max-width:380px){.navin{padding:0 16px}.runsOn{font-size:9px;padding:3px 8px}}</style></head>
+.runsOn .rsep{color:#8354FF;font-weight:700}@media(max-width:560px){.navCta{flex-direction:column;align-items:flex-end;gap:2px}.runsOn{font-size:12px;padding:3px 9px}}/* Mobile header breathing room (JP 2026-11-23): real gaps, nothing clipped or off-edge */@media(max-width:560px){.navCta{gap:7px}.brand{flex:0 1 auto;min-width:0}.brand img{width:min(36vw,132px);max-width:100%}}@media(max-width:380px){.navin{padding:0 16px}.runsOn{font-size:12px;padding:3px 8px}}</style></head>
 <body>
 <header class="nav"><div class="navin"><a class="brand" href="/"><img src="assets/lockup-300.png" alt="Proofaro"/></a><div class="navCta"><button class="btn" data-open="invite">Request Invite →</button><span class="runsOn">Runs on Mac <span class="rsep">·</span> Windows <span class="rsep">·</span> Linux</span></div></div></header>
 <div class="wrap"><a class="backlink" data-back href="/">&larr; Back</a><main>
@@ -139,7 +139,7 @@ textarea.ck:focus{outline:3px solid #b277ef;outline-offset:1px}
 <section id="results" aria-live="polite"></section>
 <div class="ctaResults" id="resultsCta" hidden>
 <p>Proofaro does this automatically from your live meetings, fully offline after setup. <button class="ctaLink" type="button" data-open="invite" id="ctaInvite">Request early access.</button></p>
-<form class="emailRow" id="emailRow">
+<form class="emailRow" id="emailRow" method="post">
 <input type="email" id="ctaEmail" autocomplete="email" placeholder="you@example.com" aria-label="Email address"/>
 <button class="btn" type="submit">Request early access</button>
 </form>
@@ -172,7 +172,7 @@ textarea.ck:focus{outline:3px solid #b277ef;outline-offset:1px}
 <template id="invite-form-template">
 <p class="inviteIntro">Free during early access. Available by invitation only. Tell us your email and your operating system — and, if you like, what you do.</p>
 <p class="inviteNote"><b>After early access:</b> a permanent Free mode keeps your history readable, searchable and exportable forever — and early users get the lowest price Proofaro ever offers, locked while subscribed.</p>
-<form id="invite-form">
+<form id="invite-form" method="post">
 <label class="inviteLabel" for="invite-email">Email address</label>
 <input class="formInput" autocomplete="email" id="invite-email" maxlength="254" name="email" placeholder="you@example.com" required type="email"/>
 <label class="inviteLabel" for="invite-role">What do you do? <span class="inviteOpt">(optional — helps us pick your wave)</span></label>
@@ -219,7 +219,7 @@ button:focus-visible,a:focus-visible{outline:3px solid #b277ef;outline-offset:4p
 .inviteNote a{color:#6121b9;text-decoration:underline}
 
 </style>
-<script>window.LOCALNOTE_INVITE_ENDPOINT="https://formsubmit.co/ajax/df25c6b83a284d12469f08ade02fac2b";</script>
+<script>window.PROOFARO_INVITE_ENDPOINT="https://formsubmit.co/ajax/df25c6b83a284d12469f08ade02fac2b";</script>
 <script>
 const dialog=document.getElementById('modal'), target=document.getElementById('modalContent');
 function show(type){document.getElementById('dialogTitle').textContent='Request an invitation';document.getElementById('dialogEyebrow').textContent='Free during early access';
@@ -232,6 +232,7 @@ let lastOpener=null;document.querySelectorAll('[data-open]').forEach(n=>n.addEve
 function wireInviteForm(){
  const form=document.getElementById('invite-form');if(!form||form.dataset.wired)return;form.dataset.wired='1';
  const msg=document.getElementById('invite-message');
+ const gcSubmit=()=>{try{if(window.goatcounter&&window.goatcounter.count)window.goatcounter.count({path:'events/email_submitted',title:'email_submitted',event:true});}catch(e){}};
  const roleSel=document.getElementById('invite-role'),otherWrap=document.getElementById('invite-role-other-wrap'),otherInput=document.getElementById('invite-role-other');
  roleSel.addEventListener('change',()=>{const o=roleSel.value==='Other';otherWrap.hidden=!o;if(o)otherInput.focus();});
  form.addEventListener('submit',async e=>{
@@ -240,7 +241,7 @@ function wireInviteForm(){
   const termsBox=document.getElementById('invite-terms');if(termsBox&&!termsBox.checked){msg.textContent='Please agree to the Terms and Privacy Policy to continue.';termsBox.focus();return;}
   const request={email:form.elements.email.value.trim(),operating_system:form.elements.operating_system.value,role:form.elements.role.value,terms_accepted:termsBox&&termsBox.checked?'yes':'',_honey:form.elements['_honey'].value};
   if(request.role==='Other')request.role_other=otherInput.value.trim();const cm=form.elements.common_mistake.value.trim();if(cm)request.common_mistake=cm;
-  const endpoint=window.LOCALNOTE_INVITE_ENDPOINT;
+  const endpoint=window.PROOFARO_INVITE_ENDPOINT;
   if(!endpoint){msg.textContent='Preview only: invitation request is not sent. Connect the approved request endpoint before launch.';return;}
   const submit=form.querySelector('[type=submit]');submit.disabled=true;
   msg.textContent='Submitting request\u2026';
@@ -251,11 +252,11 @@ function wireInviteForm(){
    const response=await Promise.race([send,limit]);
    clearTimeout(slowNote);
    if(response===null){
-    send.then(r=>{if(r&&r.ok){msg.textContent='Request received. Access is granted only after approval.';form.reset();}}).catch(()=>{});
+    send.then(r=>{if(r&&r.ok){gcSubmit();msg.textContent='Request received. Access is granted only after approval.';form.reset();}}).catch(()=>{});
     msg.textContent='This is taking longer than usual \u2014 your request is still being confirmed, so we cannot say yet that it reached us. If no acknowledgement email arrives within about 15 minutes, please email invites@proofaro.ai.';
    }else{
     if(!response.ok)throw new Error('Request not accepted');
-    msg.textContent='Request received. Access is granted only after approval.';
+    gcSubmit();msg.textContent='Request received. Access is granted only after approval.';
     form.reset();
    }
   }catch(err){clearTimeout(slowNote);msg.textContent='Could not submit your request. Please try again, or email invites@proofaro.ai.';}
@@ -440,8 +441,6 @@ document.getElementById('emailRow').addEventListener('submit',function(e){
  gc('invite_clicked');
  show('invite');
  var iv=document.getElementById('invite-email');if(iv){iv.value=em.value;}
- var msg=document.getElementById('invite-message');
- if(msg){var sent=false;var ob=new MutationObserver(function(){if(!sent&&/^Request received/.test(msg.textContent||'')){sent=true;gc('email_submitted');ob.disconnect();}});ob.observe(msg,{childList:true,characterData:true,subtree:true});setTimeout(function(){ob.disconnect();},120000);}
 });
 document.getElementById('pdfBtn').addEventListener('click',function(){if(lastResult)buildPrint(lastResult,visibleFlags());window.print();});
 var fileNote=document.getElementById('fileNote');
